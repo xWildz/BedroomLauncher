@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180 TV banner: night sky, soft moon, horizon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#0D1024" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#26193A" android:pathData="M0,120h320v60h-320z" />
+    <path android:fillColor="#3A2A55" android:pathData="M0,120h320v2h-320z" />
+    <path android:fillColor="#FFE8C8" android:pathData="M220,70m-26,0a26,26 0,1 1,52 0a26,26 0,1 1,-52 0" />
+    <path android:fillColor="#0D1024" android:pathData="M232,62m-24,0a24,24 0,1 1,48 0a24,24 0,1 1,-48 0" />
+</vector>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Remote" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF0B1120</item>
+        <item name="android:statusBarColor">#FF0B1120</item>
+        <item name="android:navigationBarColor">#FF0B1120</item>
+    </style>
+
+    <!-- Share sheet: see-through, the card slides up over whatever app you shared from. -->
+    <style name="Theme.Remote.Share" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">#FF141E33</item>
+    </style>
+</resources>

@@ -1,0 +1,43 @@
+# ---- Build output and IDE files (made by Android Studio / Gradle)
+.gradle/
+.idea/
+.kotlin/
+build/
+local.properties
+*.iml
+*.apk
+
+# ---- Never commit signing keys
+*.jks
+*.keystore
+keystore.properties
+
+# ---- Personal and machine-specific settings, and logs
+*.local.md
+tools/tv-address.txt
+tools/panel-settings.json
+tools/scrcpy/
+*.log
+*-log.txt
+*-diag.txt
+tv-audit.txt
+tv-info.txt
+input-info.txt
+weekly-log.txt
+shots/
+pictureoff/
+
+# ---- Kept on disk but no longer used (one-off TV investigations from setup)
+tools/gamepad-diag.ps1
+tools/hulu-diag.ps1
+tools/input-info.ps1
+tools/pictureoff-grab.ps1
+tools/pictureoff-keys.ps1
+tools/pictureoff-probe.ps1
+tools/screenoff-diag.ps1
+tools/tv-audit.ps1
+tools/tv-info.ps1
+tools/shot.ps1
+app/src/main/java/com/bedroom/launcher/PictureProbe.kt
+app/src/main/java/com/bedroom/launcher/StreamHeartbeat.kt
+phone/src/main/java/com/bedroom/remote/Saves.kt

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App icon: navy tile with a D-pad ring and a gold center (matches Bedroom Home). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#0D1424" android:pathData="M24,8h60a16,16 0,0 1,16 16v60a16,16 0,0 1,-16 16h-60a16,16 0,0 1,-16 -16v-60a16,16 0,0 1,16 -16z" />
+    <path android:fillColor="#24324F" android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0" />
+    <path android:fillColor="#0D1424" android:pathData="M54,54m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0" />
+    <path android:fillColor="#FFD27A" android:pathData="M54,54m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0" />
+    <path android:fillColor="#8FB8FF" android:pathData="M54,26l6,7h-12z" />
+    <path android:fillColor="#8FB8FF" android:pathData="M54,82l-6,-7h12z" />
+    <path android:fillColor="#8FB8FF" android:pathData="M26,54l7,-6v12z" />
+    <path android:fillColor="#8FB8FF" android:pathData="M82,54l-7,6v-12z" />
+</vector>

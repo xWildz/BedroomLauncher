@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1120">
+<meta name="referrer" content="no-referrer">
+<title>Bedroom TV - pair</title>
+<style>
+  body { margin:0 auto; max-width:460px; padding:28px 20px; background:#0b1120; color:#eef3fb;
+         font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  h1 { font-size:22px; margin:0 0 8px; }
+  p { color:#93a4c0; }
+  a.btn { display:block; text-align:center; background:#8fb8ff; color:#0b1120; text-decoration:none;
+          font-weight:600; padding:16px; border-radius:16px; margin:20px 0; }
+  .warn { color:#ffb36b; }
+</style>
+</head>
+<body>
+<h1>Bedroom TV</h1>
+<p>Tap below to pair the <b>TV Remote</b> app with this TV.</p>
+<a class="btn" id="open" href="#">Open TV Remote and pair</a>
+<p id="msg"></p>
+<p>Don't have the app? Install TV Remote first, then scan the TV's QR code again.</p>
+<script>
+  // The key is in the part after "#", which the browser never sends over the network.
+  var m = /k=([a-z2-7]{32})/.exec(location.hash);
+  var a = document.getElementById("open");
+  if (!m) {
+    a.style.display = "none";
+    document.getElementById("msg").className = "warn";
+    document.getElementById("msg").textContent = "This link has no pairing code. Scan the QR code on the TV's Phone screen.";
+  } else {
+    a.href = "intent://pair?h=" + encodeURIComponent(location.hostname) + "&k=" + m[1] +
+             "#Intent;scheme=bedroomtv;package=com.bedroom.remote;end";
+    history.replaceState(null, "", location.pathname); // don't leave the code in the browser's history
+  }
+</script>
+</body>
+</html>

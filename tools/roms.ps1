@@ -119,7 +119,12 @@ if ($RestoreConfig) {
     }
 }
 
+# A USB drive plugged into the TV takes new games (RetroArch's own folder on the drive, which it can always read).
+$usb = ("$(& $adb -s $Tv shell 'for x in /storage/*; do case "$x" in */emulated|*/self) ;; *) [ -d "$x" ] && [ -w "$x" ] && echo "$x";; esac; done | head -n 1' 2>$null)").Trim()
+$pushBase = if ($usb) { "$usb/Android/data/com.retroarch/files/ROMs" } else { $base }
+
 if ($Push) {
+    if ($usb) { Write-Host "USB drive found on the TV ($usb): new games go there." }
     foreach ($f in $Push) {
         if (-not (Test-Path -LiteralPath $f)) { Write-Host "Not found: $f"; continue }
         $ext = [IO.Path]::GetExtension($f).ToLower()
@@ -129,9 +134,9 @@ if ($Push) {
         }
         $folder = FolderFor $f
         $name = [IO.Path]::GetFileName($f)
-        Write-Host "Sending $name -> ROMs/$folder ..."
-        & $adb -s $Tv shell "mkdir -p '$base/$folder'" | Out-Null
-        & $adb -s $Tv push $f "$base/$folder/$name" 2>&1 | ForEach-Object { "$_" } | Select-Object -Last 1 | Write-Host
+        Write-Host ("Sending $name -> ROMs/$folder" + $(if ($usb) { " (USB drive)" } else { "" }) + " ...")
+        & $adb -s $Tv shell "mkdir -p '$pushBase/$folder'" | Out-Null
+        & $adb -s $Tv push $f "$pushBase/$folder/$name" 2>&1 | ForEach-Object { "$_" } | Select-Object -Last 1 | Write-Host
     }
 }
 
@@ -145,4 +150,8 @@ if ($List -or $Push) {
     $df = (& $adb -s $Tv shell "df -h /data | tail -1" | Select-Object -First 1)
     $free = ("$df" -split '\s+')[3]
     Write-Host "  Free space on the TV: $free"
+    if ($usb) {
+        $ud = (& $adb -s $Tv shell "df -h '$usb' | tail -1" | Select-Object -First 1)
+        Write-Host ("  USB drive: {0} free" -f ("$ud" -split '\s+')[3])
+    }
 }

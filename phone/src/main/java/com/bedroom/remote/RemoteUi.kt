@@ -111,6 +111,7 @@ fun RemoteApp(tv: TvClient) {
             tv.refreshApps()
             while (isActive) {
                 tv.refreshStatus()
+                if (tv.online == false) tv.diagnoseOffline()
                 // Check more often while the TV isn't answering, so it reconnects quickly.
                 delay(if (tv.online == false) 2000 else 4000)
             }
@@ -167,6 +168,7 @@ fun RemoteApp(tv: TvClient) {
                     .padding(horizontal = 20.dp),
             ) {
                 Header(tv, onSettings = { showSettings = true })
+                ConnectionNote(tv)
                 when (tab) {
                     Tab.Remote -> RemoteTab(tv, onKeyboard = { showKeyboard = true })
                     Tab.Apps -> LiveAppsTab(tv) { SleepSection(tv) }
@@ -180,6 +182,23 @@ fun RemoteApp(tv: TvClient) {
         if (showSettings) SettingsDialog(tv) { showSettings = false }
         if (showKeyboard) KeyboardDialog(tv) { showKeyboard = false }
     }
+}
+
+/** Why the TV can't be reached (or that it just restarted), with what to do. */
+@Composable
+private fun ConnectionNote(tv: TvClient) {
+    val up = tv.status?.uptimeMin ?: -1
+    val text = when {
+        tv.online == false -> tv.offlineHint
+        tv.online == true && up in 0..15 -> "The TV restarted $up min ago. The Bedroom tab shows why (TV health)."
+        else -> null
+    } ?: return
+    Text(
+        text,
+        color = if (tv.online == false) Warn else Gold, fontSize = 12.sp,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Ui.Card)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    )
 }
 
 @Composable

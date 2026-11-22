@@ -60,23 +60,46 @@ object RetroRoms {
         -1
     }
 
-    /** Every game on the TV, grouped by system, plus free space. */
-    fun list(ctx: Context): String = try {
-        val out = Dadb.create("127.0.0.1", 5555, KeyInjector.keyPair(ctx)).use { d ->
-            d.shell("[ -d $ROMS ] && cd $ROMS && find . -type f -exec stat -c '%s|%n' {} + 2>/dev/null").output
-        }
-        val bySystem = sortedMapOf<String, JSONArray>(String.CASE_INSENSITIVE_ORDER)
+    /**
+     * A USB drive plugged into the TV (used as normal "portable" storage), or null. New games go there:
+     * into RetroArch's own folder on the drive, which RetroArch can always read without extra permissions.
+     */
+    private fun usbRoot(d: Dadb): String? =
+        d.shell("for x in /storage/*; do case \"\$x\" in */emulated|*/self) ;; *) [ -d \"\$x\" ] && [ -w \"\$x\" ] && echo \"\$x\";; esac; done | head -n 1")
+            .output.trim().ifBlank { null }
+
+    private fun usbRoms(usb: String) = "$usb/Android/data/com.retroarch/files/ROMs"
+
+    private fun usbFree(d: Dadb, usb: String): Long =
+        d.shell("df -k ${q(usb)} 2>/dev/null | tail -n 1").output.trim().split(Regex("\\s+")).getOrNull(3)?.toLongOrNull()?.times(1024) ?: -1
+
+    private fun listIn(d: Dadb, root: String, suffix: String, into: MutableMap<String, JSONArray>) {
+        val out = d.shell("[ -d ${q(root)} ] && cd ${q(root)} && find . -type f -exec stat -c '%s|%n' {} + 2>/dev/null").output
         out.lines().forEach { line ->
             val p = line.trim().split("|", limit = 2)
             if (p.size < 2) return@forEach
             val rel = p[1].removePrefix("./")
-            val system = if (rel.contains('/')) rel.substringBefore('/') else "Other"
-            bySystem.getOrPut(system) { JSONArray() }
+            val system = (if (rel.contains('/')) rel.substringBefore('/') else "Other") + suffix
+            into.getOrPut(system) { JSONArray() }
                 .put(JSONObject().put("name", rel.substringAfterLast('/')).put("size", p[0].toLongOrNull() ?: 0))
+        }
+    }
+
+    /** Every game on the TV (and on a USB drive, if one is plugged in), grouped by system, plus free space. */
+    fun list(ctx: Context): String = try {
+        val bySystem = sortedMapOf<String, JSONArray>(String.CASE_INSENSITIVE_ORDER)
+        var usbFreeBytes = -1L
+        val usb = Dadb.create("127.0.0.1", 5555, KeyInjector.keyPair(ctx)).use { d ->
+            listIn(d, ROMS, "", bySystem)
+            usbRoot(d)?.also { u ->
+                listIn(d, usbRoms(u), " (USB drive)", bySystem)
+                usbFreeBytes = usbFree(d, u)
+            }
         }
         val arr = JSONArray()
         bySystem.forEach { (sys, files) -> arr.put(JSONObject().put("system", sys).put("files", files)) }
-        JSONObject().put("ok", true).put("systems", arr).put("free", freeBytes()).toString()
+        JSONObject().put("ok", true).put("systems", arr).put("free", freeBytes())
+            .put("usb", if (usb != null) JSONObject().put("free", usbFreeBytes) else JSONObject.NULL).toString()
     } catch (e: Throwable) {
         JSONObject().put("ok", false)
             .put("error", "Can't reach RetroArch's folder. Press \"Allow full remote\" on the TV's Phone screen.").toString()
@@ -90,16 +113,22 @@ object RetroRoms {
         val ext = name.substringAfterLast('.', "").lowercase()
         if (!SAFE_NAME.matches(name)) return fail("That file name has characters the TV can't use. Rename it and try again.")
         if (ext == "rar" || ext == "7z") return fail("RetroArch can't open .$ext files. Unzip it first (or re-zip it as .zip).")
-        val free = freeBytes()
-        if (free in 0 until file.length() + 50L * 1024 * 1024) return fail("Not enough space on the TV.")
         return try {
             val folder = folderFor(name, file)
-            val target = "$ROMS/$folder/$name"
             Dadb.create("127.0.0.1", 5555, KeyInjector.keyPair(ctx)).use { d ->
+                // A USB drive, if plugged in and it has room, takes new games (the TV itself has little space).
+                val usb = usbRoot(d)?.takeIf { usbFree(d, it) > file.length() + 20L * 1024 * 1024 }
+                val root = if (usb != null) usbRoms(usb) else ROMS
+                if (usb == null) {
+                    val free = freeBytes()
+                    if (free in 0 until file.length() + 50L * 1024 * 1024) return fail("Not enough space on the TV. Plug in a USB drive for more room.")
+                }
+                val target = "$root/$folder/$name"
                 val existed = d.shell("[ -e ${q(target)} ] && echo yes").output.trim() == "yes"
-                d.shell("mkdir -p ${q("$ROMS/$folder")}")
+                d.shell("mkdir -p ${q("$root/$folder")}")
                 d.push(file, target, 420, System.currentTimeMillis())
-                JSONObject().put("ok", true).put("folder", folder).put("replaced", existed).toString()
+                JSONObject().put("ok", true).put("folder", folder + if (usb != null) " (USB drive)" else "")
+                    .put("replaced", existed).put("usb", usb != null).toString()
             }
         } catch (e: Throwable) {
             fail("Couldn't save it on the TV (${e.javaClass.simpleName}). Is \"Allow full remote\" turned on?")

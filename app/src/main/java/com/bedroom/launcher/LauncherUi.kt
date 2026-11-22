@@ -994,12 +994,16 @@ private fun MoonIcon(color: Color, size: Dp = 18.dp) {
     }
 }
 
-/** A small thumbnail on the Photos button that changes every few seconds (falls back to the icon). */
+/**
+ * A small thumbnail on the Photos button that changes every 30 seconds while someone is using the home
+ * screen (falls back to the icon). Stops changing when the TV is idle (see Idle).
+ */
 @Composable
 private fun PhotoPreview(p: Palette) {
     val ctx = LocalContext.current
-    val pic by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null) {
-        var i = 0
+    val active = Idle.active.value
+    val pic by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, active) {
+        var i = (System.currentTimeMillis() / 30_000).toInt()
         while (true) {
             val list = withContext(Dispatchers.IO) { PhotoStore.list(ctx) }
             if (list.isNotEmpty()) {
@@ -1007,7 +1011,8 @@ private fun PhotoPreview(p: Palette) {
                 i++
                 value = withContext(Dispatchers.IO) { PhotoStore.decode(f, 96, 64)?.asImageBitmap() }
             }
-            kotlinx.coroutines.delay(5000)
+            if (!active) break // idle: keep the current picture, stop decoding new ones
+            kotlinx.coroutines.delay(30_000)
         }
     }
     androidx.compose.animation.Crossfade(targetState = pic, label = "photoPill") { b ->

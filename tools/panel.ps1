@@ -1758,6 +1758,61 @@ $card = New-Card $pg $Icon.Save "Weekly backup" 400 "Every Sunday: copies RetroA
 New-Tile $card $Icon.Clock "Turn on" { RunScript "weekly.ps1" @("-Install") } "accent" 172 | Out-Null
 New-Tile $card $Icon.Close "Turn off" { RunScript "weekly.ps1" @("-Uninstall") } "normal" 172 | Out-Null; Break-Row $card
 New-Tile $card $Icon.Play "Run it now" { RunScript "weekly.ps1" @() } "normal" 172 | Out-Null
+
+# TV health: uptime, memory, how busy it is, restarts and what Bedroom Home did (from the TV app's health report).
+$card = New-Card $pg $Icon.Health "TV health" 400 "Restarts, memory and what Bedroom Home did overnight (closed idle apps, Wi-Fi repairs). Refreshes every 2 minutes."
+$healthLabel = New-Object Windows.Forms.Label
+$healthLabel.Text = "Reading..."
+$healthLabel.Font = $Fonts.Body
+$healthLabel.ForeColor = $Theme.Text
+$healthLabel.BackColor = $Theme.Card
+$healthLabel.AutoSize = $true
+$healthLabel.MaximumSize = New-Object Drawing.Size(360, 0)
+$healthLabel.Margin = New-Object Windows.Forms.Padding(2, 4, 0, 8)
+$card.Controls.Add($healthLabel); Break-Row $card
+New-Tile $card $Icon.Refresh "Refresh" { Read-Health } "normal" 172 | Out-Null
+New-Tile $card $Icon.Health "Why did it restart?" { Why-Restart } "accent" 172 | Out-Null
+
+function Format-Health([string]$json) {
+    $h = $json | ConvertFrom-Json
+    $up = [int]$h.uptimeMin
+    $upText = if ($up -lt 60) { "$up min" } elseif ($up -lt 2880) { "{0} h {1} m" -f [math]::Floor($up / 60), ($up % 60) } else { "{0} days" -f [math]::Floor($up / 1440) }
+    $busy = if ($h.load -lt 0) { "?" } elseif ($h.load -lt 2.5) { "calm" } elseif ($h.load -lt 5) { "busy" } else { "very busy" }
+    $lines = @(
+        "Up $upText (started $($h.bootWhen), $($h.bootReason))",
+        "Memory free $($h.memFreeMb) of $($h.memTotalMb) MB, overflow $($h.swapUsedPct)% full, processor $busy, Bedroom Home $($h.homeMb) MB" + $(if ($h.idle) { ", idle" } else { "" })
+    )
+    $r = @($h.restarts | ForEach-Object { $_.when })
+    if ($r.Count) { $lines += "Recent restarts: " + (($r | Select-Object -First 5) -join " | ") }
+    $e = @($h.events | Select-Object -First 5 | ForEach-Object { "  $($_.when)  $($_.text)" })
+    if ($e.Count) { $lines += "What Bedroom Home did:"; $lines += $e }
+    $lines -join "`n"
+}
+
+function Read-Health {
+    Run-Bg "~health" {
+        param($a, $t)
+        & $a -s $t shell "am broadcast -n com.bedroom.launcher/.ScreenControlReceiver --es op health" 2>&1 | ForEach-Object { "$_" }
+    } @($adb, $Tv) {
+        param($out)
+        $txt = ($out -join " ")
+        if ($txt -match 'data="(\{.*\})"') {
+            try { $healthLabel.Text = Format-Health ($Matches[1] -replace '\\"', '"') } catch { $healthLabel.Text = "Couldn't read the report: $_" }
+        } else {
+            $healthLabel.Text = "Can't reach the TV (is it on?). Update Bedroom Home to 1.9.0 or newer for this card."
+        }
+    }
+}
+
+# Runs the read-only restart check (tools\restart-diag.ps1), then opens the full report.
+function Why-Restart {
+    RunScript "restart-diag.ps1" @() { $f2 = Join-Path $root "restart-diag.txt"; if (Test-Path $f2) { Start-Process notepad $f2 } }
+}
+
+$healthTimer = New-Object Windows.Forms.Timer
+$healthTimer.Interval = 120000
+$healthTimer.Add_Tick({ Read-Health })
+$healthTimer.Start()
 New-Tile $card $Icon.Folder "Open backups" {
     $w = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "RetroArch Saves\Weekly"
     New-Item -ItemType Directory -Force -Path $w | Out-Null; Start-Process $w
@@ -1790,6 +1845,7 @@ New-Tile $card $Icon.Camera "Screenshot" {
         & powershell -NoProfile -ExecutionPolicy Bypass -File $p -Name panel -Device "-s $tvAddr" 2>&1 | ForEach-Object { "$_" }
     } @((Join-Path $tools "shot.ps1"), $Tv) { Start-Process (Join-Path $root "shots") }
 } "normal" 172 | Out-Null
+New-Tile $card $Icon.Health "Why did it restart?" { Why-Restart } "normal" 172 | Out-Null
 New-Tile $card $Icon.Health "Hulu check" {
     RunScript "hulu-diag.ps1" @() { $f2 = Join-Path $root "hulu-diag.txt"; if (Test-Path $f2) { Start-Process notepad $f2 } }
 } "normal" 172 | Out-Null
@@ -1927,5 +1983,6 @@ $form.Add_Shown({
     Refresh-Status
 })
 $form.Add_Shown({ Read-Brightness })
+$form.Add_Shown({ Read-Health })
 $form.Add_FormClosing({ $jobTimer.Stop(); $statusTimer.Stop(); $liveTimer.Stop(); Stop-SmoothVideo; Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue })
 [void]$form.ShowDialog()

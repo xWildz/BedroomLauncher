@@ -31,6 +31,23 @@ data class TvStatus(
     val gamepad2: String = "off",
     val night: Boolean = false,
     val backlight: Int = -1,
+    val uptimeMin: Long = -1,
+)
+
+/** The TV's health report (Bedroom tab and the PC panel show the same thing). */
+data class TvHealth(
+    val uptimeMin: Long,
+    val bootWhen: String,
+    val bootReason: String,
+    val memFreeMb: Long,
+    val memTotalMb: Long,
+    val swapUsedPct: Int,
+    val load: Double,
+    val homeMb: Long,
+    val idle: Boolean,
+    val restarts: List<String>,
+    val events: List<Pair<String, String>>,
+    val nightClose: Boolean,
 )
 
 data class TvApp(
@@ -68,7 +85,7 @@ data class MediaInfo(
 /** Bedroom settings on the TV (alarm, bedtime, night mode, idle, photo frame). Raw JSON keeps it flexible. */
 data class BedroomInfo(val j: JSONObject) {
     fun int(k: String, d: Int = 0) = j.optInt(k, d)
-    fun bool(k: String) = j.optBoolean(k)
+    fun bool(k: String, def: Boolean = false) = j.optBoolean(k, def)
     fun str(k: String, d: String = "") = j.optString(k, d)
 }
 
@@ -161,6 +178,9 @@ class TvClient(ctx: Context) {
     var romsFree by mutableStateOf(-1L)
         private set
     var romsError by mutableStateOf<String?>(null)
+        private set
+    /** Free space on a USB drive plugged into the TV (null = none). New games go there. */
+    var usbFree by mutableStateOf<Long?>(null)
         private set
 
     val configured: Boolean get() = host.isNotBlank() && key.isNotBlank()
@@ -272,7 +292,52 @@ class TvClient(ctx: Context) {
             gamepad2 = j.optString("gamepad2", "off"),
             night = j.optBoolean("night"),
             backlight = j.optInt("backlight", -1),
+            uptimeMin = j.optLong("uptimeMin", -1),
         )
+    }
+
+    var health by mutableStateOf<TvHealth?>(null)
+        private set
+
+    suspend fun refreshHealth() {
+        val j = call("health") ?: return
+        fun list(name: String) = j.optJSONArray(name)?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } }.orEmpty()
+        health = TvHealth(
+            uptimeMin = j.optLong("uptimeMin"),
+            bootWhen = j.optString("bootWhen"),
+            bootReason = j.optString("bootReason"),
+            memFreeMb = j.optLong("memFreeMb"),
+            memTotalMb = j.optLong("memTotalMb"),
+            swapUsedPct = j.optInt("swapUsedPct"),
+            load = j.optDouble("load", -1.0),
+            homeMb = j.optLong("homeMb", -1),
+            idle = j.optBoolean("idle"),
+            restarts = list("restarts").map { it.optString("when") },
+            events = list("events").map { it.optString("when") to it.optString("text") },
+            nightClose = j.optBoolean("nightClose", true),
+        )
+    }
+
+    /**
+     * When the TV doesn't answer: is it there at all? Port 5555 is the TV's own adb (up as soon as Android
+     * has started); 8765 is Bedroom Home. Lets the app say "starting up" vs "not on the network".
+     */
+    var offlineHint by mutableStateOf<String?>(null)
+        private set
+
+    suspend fun diagnoseOffline() = withContext(Dispatchers.IO) {
+        if (host.isBlank()) return@withContext
+        fun open(port: Int) = try {
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), 1500); true }
+        } catch (e: Exception) {
+            false
+        }
+        offlineHint = when {
+            open(8765) -> "The TV is answering again. Tap Reconnect."
+            open(5555) -> "The TV is on the network but Bedroom Home is still starting (it may have just restarted). Give it a minute."
+            else -> "The TV isn't on the network. It may be restarting (wait a minute), turned fully off with its own remote, " +
+                "or off Wi-Fi (Bedroom Home reconnects Wi-Fi by itself within about 3 minutes)."
+        }
     }
 
     /** Screen off (sound keeps playing) / back on. */
@@ -466,6 +531,7 @@ class TvClient(ctx: Context) {
                 )
             }
             romsFree = j.optLong("free", -1)
+            usbFree = j.optJSONObject("usb")?.optLong("free", -1)
             romsError = null
         } catch (e: Exception) {
             romsError = "Can't reach the TV (is it on and is Bedroom Home running?)"

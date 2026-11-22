@@ -351,7 +351,8 @@ fun GamesTab(tv: TvClient) {
                         err != null -> err
                         games == null -> "Loading…"
                         else -> "$games games · ${saves.size} saves" +
-                            if (tv.romsFree >= 0) " · ${Formatter.formatShortFileSize(ctx, tv.romsFree)} free" else ""
+                            (if (tv.romsFree >= 0) " · ${Formatter.formatShortFileSize(ctx, tv.romsFree)} free" else "") +
+                            (tv.usbFree?.let { " · USB drive ${if (it >= 0) Formatter.formatShortFileSize(ctx, it) + " free" else "plugged in"} (new games go there)" } ?: "")
                     },
                     color = if (err != null) GWarn else GSub, fontSize = 13.sp, modifier = Modifier.weight(1f),
                 )

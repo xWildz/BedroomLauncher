@@ -27,8 +27,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Any button or touch: someone is using the home screen (animations back on).
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        Idle.poke()
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        Idle.poke()
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onResume() {
         super.onResume()
+        Idle.poke()
         resumeTick.intValue++
     }
 

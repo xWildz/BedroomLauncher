@@ -8,9 +8,9 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 | Current versions | |
 |---|---|
-| Bedroom Home (TV) | **1.8.0** (versionCode 37) |
-| TV Remote (phone) | **3.4 "Sharing Shark"** (versionCode 24) |
-| PC control panel | **v4** (Material look) |
+| Bedroom Home (TV) | **1.9.0** (versionCode 38) |
+| TV Remote (phone) | **3.5 "Healthy Hedgehog"** (versionCode 25) |
+| PC control panel | **v4.1** |
 
 > Older entries were reconstructed from the project notes and the APKs built along the way, so very early
 > releases are summarised rather than listed one by one.
@@ -18,6 +18,23 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## Bedroom Home (TV app)
+
+### 1.9.0 — 2026-11-22
+- **Fix: the TV restarting by itself at night.** The TV's logs showed it being reset by its own hardware while
+  Bedroom Home kept redrawing the animated weather and changing the Photos thumbnail all night (about 20–25 %
+  of the processor with nobody watching, and the TV's memory overflow 100 % full). Animations now stop after
+  10 minutes without a button press, and whenever the TV is resting or the screen is off; any button brings
+  them back. The Photos thumbnail changes every 30 seconds instead of 5, and the play-time check stays quiet
+  while the screen is off.
+- **Night clean-up:** after an hour of rest / screen off, closes video apps that are open but not playing
+  (Hulu, Netflix, …). Never YouTube, YouTube Music, anything playing, the app on screen, or RetroArch.
+  Can be turned off on the phone (Bedroom tab).
+- **Wi-Fi self-repair:** if Wi-Fi has been fully disconnected for 3 minutes, Bedroom Home switches it off and on
+  (at most every 15 minutes). A working connection is never touched.
+- **Health report** for the phone and PC: uptime, why the TV last started, recent restarts, free memory, how busy
+  it is, and what Bedroom Home did overnight.
+- Gives memory back when Android asks (decoded banners and cover art are rebuilt later).
+- **USB drive for games:** with a USB drive plugged in, new games go to RetroArch's folder on the drive.
 
 ### 1.8.0 — 2026-11-01
 - **Share to TV:** links shared from the phone open on the TV (YouTube links in the TV's YouTube app, YouTube
@@ -95,6 +112,13 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 ## TV Remote (phone app)
 
+### 3.5 "Healthy Hedgehog" — 2026-11-22
+- **TV health** card in the Bedroom tab (restarts, memory, what Bedroom Home did overnight) with the
+  "Close idle video apps overnight" switch.
+- **Clearer "can't reach the TV":** says whether the TV is restarting/starting up, or off the network, and what
+  to do; after a restart it says so ("The TV restarted 3 min ago").
+- Games tab shows a USB drive's free space when one is plugged into the TV.
+
 ### 3.4 "Sharing Shark" — 2026-11-01
 - **Bedroom TV in the Share menu:** share a link or photo from any app to the TV.
 - **Play time** card in the Games tab (hours per game, bars, last played).
@@ -165,6 +189,11 @@ Versions 1.3, 1.8, 2.1, 2.2 and 2.4 were fix releases with no visible changes.
 ---
 
 ## PC tools
+
+### Control panel v4.1 — 2026-11-22
+- **TV health** card on the Bedroom page (refreshes every 2 minutes).
+- **"Why did it restart?"** button: runs the read-only restart check (`tools\restart-diag.ps1`) and opens the report.
+- `roms.ps1` sends games to a USB drive plugged into the TV when there is one.
 
 ### Control panel v4
 - Material Dashboard look (cards, stat cards, dark sidebar).

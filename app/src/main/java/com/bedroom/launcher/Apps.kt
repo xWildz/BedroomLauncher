@@ -105,6 +105,15 @@ object Apps {
         return AppData(true, all, seen)
     }
 
+    /** The app's name as the TV shows it (package name if it can't be read). */
+    fun labelFor(ctx: Context, pkg: String): String = runCatching {
+        val pm = ctx.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+    }.getOrDefault(pkg)
+
+    /** Drop decoded banners when Android asks for memory back (they're decoded again when Home shows). */
+    fun trim() = synchronized(this) { cache.clear() }
+
     fun launch(ctx: Context, pkg: String): Boolean {
         val pm = ctx.packageManager
         val intent = pm.getLeanbackLaunchIntentForPackage(pkg)

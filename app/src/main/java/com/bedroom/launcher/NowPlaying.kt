@@ -129,6 +129,13 @@ object NowPlaying {
             .put("artKey", artKey(c) ?: JSONObject.NULL)
     }
 
+    /** Free cached cover art when Android is short of memory. */
+    fun trim() { artCache.evictAll() }
+
+    /** Apps with something playing (or paused mid-way): the night clean-up never closes these. */
+    fun playingPackages(ctx: Context): Set<String> =
+        runCatching { controllers(ctx).filter { isActive(it) }.map { it.packageName }.toSet() }.getOrDefault(emptySet())
+
     /** True while any app is playing (music in the background counts). */
     fun anyPlaying(ctx: Context): Boolean = runCatching { controllers(ctx).any { isActive(it) } }.getOrDefault(false)
 

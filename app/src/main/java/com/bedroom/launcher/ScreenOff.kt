@@ -321,6 +321,7 @@ class ScreenControlReceiver : BroadcastReceiver() {
                     "frame" -> PhotoFrame.show(app)
                     "alarmtest" -> { Alarm.fire(app); "ok alarm" }
                     "bright" -> Brightness.json(app, intent.getIntExtra("level", -1).takeIf { it >= 0 })
+                    "health" -> Health.jsonString(app)
                     else -> ScreenOff.request(app, "get")
                 }
                 Log.i(TAG, "Screen $op: $r")

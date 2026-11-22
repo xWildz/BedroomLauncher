@@ -62,12 +62,13 @@ object BedroomPrefs {
             .put("nightLevel", p.getInt("nightLevel", 20))
             .put("nightWarm", p.getBoolean("nightWarm", true))
             .put("night", NightMode.isOn)
+            .put("nightClose", p.getBoolean("nightClose", true))
             .put("maxVolume", ctx.getSystemService(AudioManager::class.java)?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100)
             .put("photos", PhotoStore.count(ctx))
     }
 
     private val INTS = setOf("alarmHour", "alarmMin", "alarmDays", "alarmVolFrom", "alarmVolTo", "alarmRamp", "bedMinutes", "bedVolume", "frameSecs", "frameRest", "nightLevel")
-    private val BOOLS = setOf("alarmOn", "bedNight", "nightWarm", "frameShuffle", "frameClock", "frameWeather", "frameZoom", "frameFill")
+    private val BOOLS = setOf("alarmOn", "bedNight", "nightWarm", "frameShuffle", "frameClock", "frameWeather", "frameZoom", "frameFill", "nightClose")
 
     /** Saves any settings present in the request, then re-arms the alarm. */
     fun set(ctx: Context, uri: Uri): String {

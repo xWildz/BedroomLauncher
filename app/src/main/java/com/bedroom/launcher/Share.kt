@@ -101,9 +101,11 @@ object PlayTime {
             while (true) {
                 try {
                     Thread.sleep(60_000)
-                    val front = RunningApps.get(app).second.orEmpty()
+                    // Screen off / resting / asleep: nobody's playing, so don't even look (keeps the TV quiet at night).
                     val awake = app.getSystemService(android.os.PowerManager::class.java)?.isInteractive != false
-                    if (front.startsWith("com.retroarch") && awake && !Rest.isResting) {
+                    if (!awake || ScreenOff.isOff) { lastPath = null; tick = 0; continue }
+                    val front = RunningApps.get(app).second.orEmpty()
+                    if (front.startsWith("com.retroarch")) {
                         // Re-read RetroArch's history now and then (it changes when a new game starts).
                         if (lastPath == null || tick % 5 == 0) lastPath = RetroHistory.refresh(app)?.path
                         val g = RetroHistory.last

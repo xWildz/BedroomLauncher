@@ -3,6 +3,7 @@
 
     <!-- Weather forecast (Open-Meteo, HTTPS only). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Keep the phone link alive while other apps are open, and start it at boot. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

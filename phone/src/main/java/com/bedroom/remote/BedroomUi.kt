@@ -79,6 +79,7 @@ fun BedroomTab(tv: TvClient) {
     LaunchedEffect(tv.host, tv.key) {
         tv.refreshBedroom()
         tv.refreshPhotos()
+        tv.refreshHealth()
     }
     val b = tv.bedroom
 
@@ -187,6 +188,9 @@ fun BedroomTab(tv: TvClient) {
 
         // ---------------- Photo frame
         PhotoCard(tv, b, { p -> set(*p) }, onShow = { act("frame") }, onMsg = { msg = it })
+
+        // ---------------- TV health
+        HealthCard(tv, b) { on -> set("nightClose" to if (on) "1" else "0"); scope.launch { tv.refreshHealth() } }
 
         // ---------------- Storage
         StorageCard(tv)
@@ -415,6 +419,46 @@ private fun StorageCard(tv: TvClient) {
 
 private fun mb(b: Long) = if (b >= 1024L * 1024 * 1024) String.format(Locale.US, "%.1f GB", b / 1073741824.0) else "${b / 1048576} MB"
 private fun gb(b: Long) = String.format(Locale.US, "%.1f GB", b / 1073741824.0)
+
+/** Uptime, memory, how busy the TV is, restarts and what Bedroom Home did about it. */
+@Composable
+private fun HealthCard(tv: TvClient, b: BedroomInfo, onNightClose: (Boolean) -> Unit) {
+    val h = tv.health
+    DashCard(
+        "TV health", "♥", Ui.Teal,
+        subtitle = h?.let { "Up ${uptime(it.uptimeMin)} · started ${it.bootWhen} (${it.bootReason})" } ?: "Reading…",
+    ) {
+        if (h != null) {
+            val busy = when {
+                h.load < 0 -> "?"
+                h.load < 2.5 -> "calm"
+                h.load < 5 -> "busy"
+                else -> "very busy"
+            }
+            Text(
+                "Memory free ${h.memFreeMb} of ${h.memTotalMb} MB · overflow ${h.swapUsedPct}% full · processor $busy" +
+                    (if (h.homeMb > 0) " · Bedroom Home ${h.homeMb} MB" else "") + (if (h.idle) " · idle" else ""),
+                color = BText, fontSize = 13.sp,
+            )
+            if (h.restarts.isNotEmpty()) {
+                Label("Recent restarts")
+                Text(h.restarts.take(5).joinToString(" · "), color = BSub, fontSize = 12.sp)
+            }
+            if (h.events.isNotEmpty()) {
+                Label("What Bedroom Home did")
+                h.events.take(6).forEach { (whenAt, text) -> Text("$whenAt  $text", color = BSub, fontSize = 12.sp) }
+            }
+        }
+        SwitchRow("Close idle video apps overnight", b.bool("nightClose", true)) { onNightClose(it) }
+        Sub("After the TV has rested for an hour: closes Hulu, Netflix and other video apps that aren't playing. Never YouTube, YouTube Music, anything playing, or RetroArch.")
+    }
+}
+
+private fun uptime(min: Long): String = when {
+    min < 60 -> "$min min"
+    min < 48 * 60 -> "${min / 60} h ${min % 60} m"
+    else -> "${min / (24 * 60)} days"
+}
 
 // ---------------------------------------------------------------- small pieces
 

@@ -306,7 +306,15 @@ object RemoteActions {
     private fun ok() = """{"ok":true}"""
     private fun err(msg: String) = JSONObject().put("ok", false).put("error", msg).toString()
 
-    fun run(ctx: Context, action: String, uri: Uri): String = when (action) {
+    fun run(ctx: Context, action: String, uri: Uri): String {
+        // Anything from the phone or PC except background polling counts as someone using the TV.
+        if (action !in QUIET) Idle.poke()
+        return runAction(ctx, action, uri)
+    }
+
+    private val QUIET = setOf("status", "health", "apps", "nowplaying", "playtime", "lastgame", "bedroom", "photos", "backlight", "roms", "saves", "storage", "frame")
+
+    private fun runAction(ctx: Context, action: String, uri: Uri): String = when (action) {
         "home" -> {
             ctx.startActivity(
                 Intent(Intent.ACTION_MAIN)
@@ -379,6 +387,7 @@ object RemoteActions {
         "openurl" -> ShareOpen.openUrl(ctx, uri.getQueryParameter("url"))
         "showphoto" -> ShareOpen.showPhoto(ctx, uri.getQueryParameter("name"))
         "playtime" -> PlayTime.json(ctx)
+        "health" -> Health.jsonString(ctx)
         "photos" -> PhotoStore.json(ctx)
         "photodel" -> PhotoStore.delete(ctx, uri.getQueryParameter("name"))
         "storage" -> Storage.json(ctx)
@@ -410,6 +419,7 @@ object RemoteActions {
             .put("night", NightMode.isOn)
             .put("backlight", Brightness.cached)
             .put("tvVersion", BuildConfig.VERSION_NAME)
+            .put("uptimeMin", android.os.SystemClock.elapsedRealtime() / 60_000)
             .toString()
     }
 

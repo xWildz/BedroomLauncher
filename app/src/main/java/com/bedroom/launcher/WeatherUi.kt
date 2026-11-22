@@ -107,7 +107,9 @@ fun WeatherIcon(sky: Sky, isDay: Boolean, size: Dp, p: Palette, animated: Boolea
     val moon = Color(0xFFE8E4D8)
     val cloud = Color(0xFFE3E8EF)
     var t by remember { mutableFloatStateOf(0f) }
-    if (animated) {
+    // Only moves while someone is using the home screen (see Idle); otherwise it's a still picture.
+    val moving = animated && Idle.active.value
+    if (moving) {
         LaunchedEffect(Unit) {
             val start = System.nanoTime()
             while (true) {
@@ -122,7 +124,7 @@ fun WeatherIcon(sky: Sky, isDay: Boolean, size: Dp, p: Palette, animated: Boolea
             .graphicsLayer(alpha = p.text.alpha), // dims with the night palette; opaque shapes don't double-up
     ) {
         val s = this.size.minDimension
-        val drift = if (animated) sin(t * 0.5f) * s * 0.035f else 0f
+        val drift = if (moving) sin(t * 0.5f) * s * 0.035f else 0f
         val spin = if (animated) t * 8f else 0f
         val pulse = if (animated) 1f + 0.06f * sin(t * 1.6f) else 1f
         when (sky) {

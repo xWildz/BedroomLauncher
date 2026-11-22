@@ -192,6 +192,9 @@ fun BedroomTab(tv: TvClient) {
         // ---------------- TV health
         HealthCard(tv, b) { on -> set("nightClose" to if (on) "1" else "0"); scope.launch { tv.refreshHealth() } }
 
+        // ---------------- Home screen look (weather background + seasonal theme)
+        LookCard(b) { k, v -> set(k to v) }
+
         // ---------------- Storage
         StorageCard(tv)
     }
@@ -451,6 +454,28 @@ private fun HealthCard(tv: TvClient, b: BedroomInfo, onNightClose: (Boolean) -> 
         }
         SwitchRow("Close idle video apps overnight", b.bool("nightClose", true)) { onNightClose(it) }
         Sub("After the TV has rested for an hour: closes Hulu, Netflix and other video apps that aren't playing. Never YouTube, YouTube Music, anything playing, or RetroArch.")
+    }
+}
+
+private val THEME_NAMES = linkedMapOf(
+    "auto" to "Auto (by date)", "off" to "None", "autumn" to "Autumn", "halloween" to "Halloween",
+    "holidays" to "Holidays", "winter" to "Winter", "spring" to "Spring", "summer" to "Summer",
+)
+
+/** How the TV's home screen background looks. */
+@Composable
+private fun LookCard(b: BedroomInfo, set: (String, String) -> Unit) {
+    DashCard("Home screen look", "✦", Ui.Purple, subtitle = "Background on the TV's home screen") {
+        SwitchRow("Match the weather", b.bool("weatherBg", true)) { set("weatherBg", if (it) "1" else "0") }
+        Sub("Rain streaks when it's raining, stars on a clear night, grey clouds, snow... A still picture, so it doesn't slow the TV.")
+        Label("Seasonal theme")
+        val cur = b.str("theme", "auto")
+        THEME_NAMES.entries.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (k, label) -> Segment(label, cur == k, Modifier.weight(1f)) { set("theme", k) } }
+            }
+        }
+        Sub("Auto: autumn leaves now, bats for Halloween week, lights for the holidays, snowflakes in winter, petals in spring, fireflies in summer. Kept to the edges of the screen.")
     }
 }
 

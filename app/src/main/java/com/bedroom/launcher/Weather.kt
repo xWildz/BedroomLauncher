@@ -20,7 +20,18 @@ data class Weather(
     val windMph: Int,
     val days: List<DayForecast>,
     val fetchedAt: Long,
+    /** Today's sunrise / sunset, local time "2026-11-22T06:58" (empty if unknown). */
+    val sunrise: String = "",
+    val sunset: String = "",
 )
+
+/** "2026-11-22T06:58" -> "6:58 AM" (or "6:58" with a 24-hour clock). */
+fun clockTime(iso: String, is24: Boolean): String = try {
+    val d = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).parse(iso)
+    if (d == null) "" else SimpleDateFormat(if (is24) "H:mm" else "h:mm a", Locale.getDefault()).format(d)
+} catch (e: Exception) {
+    ""
+}
 
 enum class Sky { Clear, PartlyCloudy, Cloudy, Fog, Drizzle, Rain, Snow, Storm }
 
@@ -149,7 +160,7 @@ object WeatherRepo {
 
         val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
             "&current=temperature_2m,weather_code,is_day,wind_speed_10m" +
-            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset" +
             "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch" +
             "&timezone=auto&forecast_days=5"
         val body = get(url)
@@ -185,6 +196,8 @@ object WeatherRepo {
             windMph = Math.round(c.optDouble("wind_speed_10m", 0.0)).toInt(),
             days = days,
             fetchedAt = fetchedAt,
+            sunrise = d.optJSONArray("sunrise")?.optString(0).orEmpty(),
+            sunset = d.optJSONArray("sunset")?.optString(0).orEmpty(),
         )
     }
 

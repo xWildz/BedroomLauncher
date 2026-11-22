@@ -2,6 +2,7 @@
 
 package com.bedroom.launcher
 
+import androidx.compose.foundation.lazy.itemsIndexed
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -82,7 +83,7 @@ import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
-private enum class Screen { Home, AllApps, EditFavorites, PhoneRemote }
+private enum class Screen { Home, AllApps, EditFavorites, PhoneRemote, UpNext }
 
 // Sizes are computed from the real screen width (960x540 dp on this 1080p TV).
 private val Gap = 24.dp
@@ -109,6 +110,7 @@ private const val KEY_SETTINGS = "settings"
 private const val KEY_ADD = "fav:add"
 private const val KEY_SLEEP = "sleep"
 private const val KEY_PHONE = "phone"
+private const val KEY_UPNEXT = "upnext"
 
 @Composable
 fun LauncherApp(resumeTick: Int, homeTick: Int) {
@@ -172,7 +174,14 @@ fun LauncherApp(resumeTick: Int, homeTick: Int) {
 
     MaterialTheme(colorScheme = darkColorScheme()) {
         Box(Modifier.fillMaxSize()) {
-            Backdrop(palette)
+            // Weather-matched background + seasonal theme (both chosen on the phone). Only simple values go in,
+            // so the still picture is redrawn when the weather / theme / hour changes, not every second.
+            val hour = now / 3_600_000L
+            val chosenTheme = Look.theme.value
+            val theme = remember(hour, chosenTheme) { Look.current(now, chosenTheme) }
+            val sky = if (Look.weatherBg.value) weather?.let { skyFor(it.code) } else null
+            val isDay = weather?.isDay ?: (phaseFor(now) == Phase.Day || phaseFor(now) == Phase.Golden)
+            LookBackdrop(palette, sky, isDay, theme)
             when (screen) {
                 Screen.Home -> HomeScreen(
                     now = now,
@@ -186,6 +195,15 @@ fun LauncherApp(resumeTick: Int, homeTick: Int) {
                     onAllApps = { screen = Screen.AllApps },
                     onEditFavorites = { screen = Screen.EditFavorites },
                     onPhone = { screen = Screen.PhoneRemote },
+                    onUpNext = { screen = Screen.UpNext },
+                )
+                Screen.UpNext -> UpNextScreen(
+                    p = palette,
+                    now = now,
+                    onBack = {
+                        lastFocused = KEY_UPNEXT
+                        screen = Screen.Home
+                    },
                 )
                 Screen.PhoneRemote -> PhoneRemoteScreen(
                     p = palette,
@@ -225,8 +243,9 @@ fun LauncherApp(resumeTick: Int, homeTick: Int) {
                     },
                 )
             }
+            val chip = Thermal.shown.value
             Text(
-                "v${BuildConfig.VERSION_NAME}",
+                (if (chip != null) "TV chip $chip°C   ·   " else "") + "v${BuildConfig.VERSION_NAME}",
                 color = palette.subtext.copy(alpha = 0.35f),
                 fontSize = 10.sp,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 12.dp),
@@ -250,6 +269,7 @@ private fun HomeScreen(
     onAllApps: () -> Unit,
     onEditFavorites: () -> Unit,
     onPhone: () -> Unit,
+    onUpNext: () -> Unit,
 ) {
     val ctx = LocalContext.current
     // Back on the home screen has nowhere to go; swallow it so nothing odd happens.
@@ -317,6 +337,20 @@ private fun HomeScreen(
                     icon = { PhotoPreview(p) },
                     onClick = { ctx.startActivity(android.content.Intent(ctx, PhotoFrameActivity::class.java)) },
                 )
+                // Up next: what you were part-way through (only shown once there's something).
+                val upVer = UpNext.version.intValue
+                val ups by produceState(emptyList<UpNext.Item>(), upVer, data) {
+                    value = withContext(Dispatchers.IO) { UpNext.items(ctx) }
+                }
+                if (ups.isNotEmpty()) {
+                    TopPill(
+                        title = "Up next",
+                        p = p,
+                        modifier = Modifier.track(KEY_UPNEXT),
+                        icon = { UpNextThumb(ups.first(), p) },
+                        onClick = onUpNext,
+                    )
+                }
                 val left = SleepTimer.minutesLeft(now)
                 TopPill(
                     title = if (left == null) "Sleep" else "Sleep ${left}m",
@@ -609,6 +643,100 @@ private fun AddTile(p: Palette, width: Dp, height: Dp, modifier: Modifier, onCli
 }
 
 /** Compact pill button in the top bar (All apps, Settings). */
+/** Small picture of the newest Up next item for the top-row button. */
+@Composable
+private fun UpNextThumb(item: UpNext.Item, p: Palette) {
+    val ctx = LocalContext.current
+    val pic by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item.art) {
+        value = UpNext.artFile(ctx, item)?.let { f -> withContext(Dispatchers.IO) { PhotoStore.decode(f, 72, 40)?.asImageBitmap() } }
+    }
+    val b = pic
+    if (b != null) Image(b, null, Modifier.width(34.dp).height(20.dp).clip(RoundedCornerShape(4.dp)), contentScale = ContentScale.Crop)
+    else PlayIcon(p.text, 18.dp)
+}
+
+// ---------------------------------------------------------------- Up next
+
+/** Big cards for what you were watching / listening to. OK = pick it back up; hold OK = remove it. */
+@Composable
+private fun UpNextScreen(p: Palette, now: Long, onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
+    val ctx = LocalContext.current
+    var ver by remember { mutableStateOf(0) }
+    val items by produceState(emptyList<UpNext.Item>(), ver, UpNext.version.intValue) {
+        value = withContext(Dispatchers.IO) { UpNext.items(ctx) }
+    }
+    val first = remember { FocusRequester() }
+    Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 28.dp)) {
+        Text("Up next", color = p.text, fontSize = 34.sp, fontWeight = FontWeight.Light)
+        Text(
+            if (items.isEmpty()) "Nothing yet. Things you watch or listen to show up here." 
+            else "Pick up where you left off · OK to open · hold OK to remove · Back to return",
+            color = p.subtext, fontSize = 14.sp,
+        )
+        Spacer(Modifier.height(20.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(22.dp), contentPadding = PaddingValues(start = 8.dp, end = 40.dp, top = 12.dp, bottom = 12.dp)) {
+            itemsIndexed(items, key = { _, u -> u.key }) { i, item ->
+                UpNextCard(
+                    item, p, now,
+                    modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                    onClick = {
+                        if (!UpNext.open(ctx, item)) toast(ctx, "Couldn't open ${Apps.labelFor(ctx, item.pkg)}")
+                    },
+                    onRemove = {
+                        kotlin.concurrent.thread { UpNext.remove(ctx, item) }
+                        toast(ctx, "Removed from Up next")
+                        ver++
+                    },
+                )
+            }
+        }
+    }
+    LaunchedEffect(items.isNotEmpty()) {
+        if (items.isNotEmpty()) {
+            delay(80)
+            runCatching { first.requestFocus() }
+        }
+    }
+}
+
+@Composable
+private fun UpNextCard(item: UpNext.Item, p: Palette, now: Long, modifier: Modifier, onClick: () -> Unit, onRemove: () -> Unit) {
+    val ctx = LocalContext.current
+    val shape = RoundedCornerShape(14.dp)
+    val pic by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, item.art) {
+        value = UpNext.artFile(ctx, item)?.let { f -> withContext(Dispatchers.IO) { PhotoStore.decode(f, 520, 300)?.asImageBitmap() } }
+    }
+    val app = remember(item.pkg) { Apps.labelFor(ctx, item.pkg) }
+    Column(Modifier.width(260.dp)) {
+        Surface(
+            onClick = onClick,
+            onLongClick = onRemove,
+            modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f).tap(onClick, onRemove),
+            shape = ClickableSurfaceDefaults.shape(shape),
+            colors = ClickableSurfaceDefaults.colors(containerColor = p.card, focusedContainerColor = p.cardFocused),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White.copy(alpha = 0.9f)), shape = shape)),
+        ) {
+            val b = pic
+            if (b != null) Image(b, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            else PlaceholderArt(item.title, Color(0xFFFF6A5F), app, titleSize = 16)
+            if (item.progress > 0f) {
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(5.dp).background(Color.Black.copy(alpha = 0.5f))) {
+                    Box(Modifier.fillMaxWidth(item.progress).fillMaxHeight().background(Color(0xFFFF4D4D)))
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(item.title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
+        val left = item.minutesLeft
+        Text(
+            listOfNotNull(app, left?.let { if (it >= 60) "${it / 60} h ${it % 60} m left" else "$it min left" }, ago(now, item.at)).joinToString(" · "),
+            color = p.subtext, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 /** The last RetroArch game: a picture of where you left off, its name, and when. OK = carry on; hold OK = set up. */
 @Composable
 private fun ContinueCard(

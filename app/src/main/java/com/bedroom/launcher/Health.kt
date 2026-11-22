@@ -150,6 +150,8 @@ object Health {
             .put("restarts", restartArr)
             .put("events", recent)
             .put("nightClose", NightCleanup.enabled(app))
+            .put("tempC", Thermal.lastC ?: JSONObject.NULL)
+            .put("tempMaxC", Thermal.maxC ?: JSONObject.NULL)
     }
 
     fun jsonString(ctx: Context): String = json(ctx).toString()
@@ -252,5 +254,133 @@ object WifiRepair {
         caps != null && (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
     } catch (e: Throwable) {
         true // can't tell: leave it alone
+    }
+}
+
+// ---------------------------------------------------------------- memory watchdog
+
+/**
+ * While nobody's watching (screen off / resting / idle), checks free memory every 2 minutes. When it's very
+ * low, Bedroom Home gives back everything it can (decoded banners, cover art) so Android doesn't have to.
+ * Never closes other apps (the night clean-up does that, and never YouTube).
+ */
+object MemoryWatch {
+    private const val LOW_MB = 140L
+    @Volatile private var started = false
+    @Volatile private var lastNote = 0L
+
+    fun freeMb(): Long = runCatching {
+        File("/proc/meminfo").readLines().firstOrNull { it.startsWith("MemAvailable:") }
+            ?.substringAfter(':')?.trim()?.substringBefore(' ')?.toLong()?.div(1024)
+    }.getOrNull() ?: -1L
+
+    fun start(ctx: Context) {
+        if (started) return
+        started = true
+        val app = ctx.applicationContext
+        thread(isDaemon = true, name = "memory-watch") {
+            while (true) {
+                try {
+                    Thread.sleep(2 * 60_000L)
+                    if (Idle.isActiveNow()) continue
+                    val free = freeMb()
+                    if (free in 0 until LOW_MB) {
+                        Apps.trim()
+                        NowPlaying.trim()
+                        System.gc()
+                        val now = SystemClock.elapsedRealtime()
+                        if (now - lastNote > 60 * 60_000L) {
+                            lastNote = now
+                            Health.event(app, "Memory was low ($free MB free); Bedroom Home freed what it could")
+                        }
+                    }
+                } catch (e: InterruptedException) {
+                    return@thread
+                } catch (e: Throwable) {
+                    Log.w(TAG, "memory check failed", e)
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- temperature
+
+/**
+ * The TV chip's temperature, from Android's thermal sensors (read-only). Checked every 2 minutes; the
+ * hottest reading since the TV started is kept, and a very hot reading is noted in the health report.
+ */
+object Thermal {
+    private const val HOT_C = 90
+    val shown = androidx.compose.runtime.mutableStateOf<Int?>(null)
+    @Volatile var lastC: Int? = null
+        private set
+    @Volatile var maxC: Int? = null
+        private set
+    @Volatile private var started = false
+    @Volatile private var useShell = false
+    @Volatile private var lastHotNote = 0L
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Highest of the thermal zones that look like the CPU/SoC, in °C. */
+    fun read(ctx: Context): Int? {
+        val raw: List<Pair<String, String>> = if (!useShell) {
+            val zones = File("/sys/class/thermal").listFiles { f -> f.name.startsWith("thermal_zone") }.orEmpty()
+            val vals = zones.mapNotNull { z ->
+                val t = runCatching { File(z, "temp").readText().trim() }.getOrNull() ?: return@mapNotNull null
+                (runCatching { File(z, "type").readText().trim() }.getOrDefault("")) to t
+            }
+            if (vals.isEmpty()) useShell = true
+            vals
+        } else emptyList()
+        val list = raw.ifEmpty {
+            runCatching {
+                TvShell.run(ctx, "for z in /sys/class/thermal/thermal_zone*; do echo \"\$(cat \$z/type 2>/dev/null)|\$(cat \$z/temp 2>/dev/null)\"; done")
+                    .lines().mapNotNull { l -> l.split('|').takeIf { it.size == 2 && it[1].isNotBlank() }?.let { it[0] to it[1] } }
+            }.getOrDefault(emptyList())
+        }
+        val temps = list.mapNotNull { (type, v) ->
+            val n = v.trim().toDoubleOrNull() ?: return@mapNotNull null
+            val c = if (n > 1000) n / 1000 else n // millidegrees on most chips
+            if (c < 5 || c > 150 || type.contains("battery", true)) null else c.toInt()
+        }
+        return temps.maxOrNull()
+    }
+
+    fun start(ctx: Context) {
+        if (started) return
+        started = true
+        val app = ctx.applicationContext
+        thread(isDaemon = true, name = "thermal") {
+            Thread.sleep(30_000)
+            var misses = 0
+            while (true) {
+                try {
+                    val c = read(app)
+                    if (c == null && ++misses >= 3) {
+                        // This TV doesn't report a temperature (the Philips/Funai set doesn't): stop asking.
+                        Log.i(TAG, "No temperature sensor on this TV")
+                        return@thread
+                    }
+                    if (c != null) {
+                        misses = 0
+                        lastC = c
+                        if (c > (maxC ?: 0)) maxC = c
+                        main.post { shown.value = c }
+                        val now = SystemClock.elapsedRealtime()
+                        if (c >= HOT_C && now - lastHotNote > 60 * 60_000L) {
+                            lastHotNote = now
+                            Health.event(app, "The TV was running hot ($c °C)")
+                        }
+                    }
+                    Thread.sleep(2 * 60_000L)
+                } catch (e: InterruptedException) {
+                    return@thread
+                } catch (e: Throwable) {
+                    Log.w(TAG, "temperature read failed", e)
+                    Thread.sleep(10 * 60_000L)
+                }
+            }
+        }
     }
 }

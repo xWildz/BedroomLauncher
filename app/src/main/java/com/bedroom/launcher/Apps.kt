@@ -52,6 +52,8 @@ data class AppData(val loaded: Boolean, val all: List<AppEntry>, val byPkg: Map<
 }
 
 object Apps {
+    /** The key the Sleep Sounds app (part of Bedroom Home) uses in app lists and favorites. */
+    const val SOUNDS = "com.bedroom.launcher/sounds"
 
     /**
      * Decoded banners are kept between reloads (keyed by the APK path, which changes when an app updates),
@@ -75,8 +77,11 @@ object Apps {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
         for (ri in pm.queryIntentActivities(intent, 0)) {
             val ai = ri.activityInfo ?: continue
-            val pkg = ai.packageName
-            if (pkg == ctx.packageName || seen.containsKey(pkg)) continue
+            // Our own Sleep Sounds app is listed (under its own key); the home screen itself isn't.
+            val pkg = if (ai.packageName == ctx.packageName) {
+                if (ai.name.endsWith(".SleepSoundsActivity")) SOUNDS else continue
+            } else ai.packageName
+            if (seen.containsKey(pkg)) continue
             val want = decodeAll || pkg in wanted
             val stamp = ai.applicationInfo?.sourceDir ?: ""
             val hit = cache[pkg]
@@ -106,7 +111,7 @@ object Apps {
     }
 
     /** The app's name as the TV shows it (package name if it can't be read). */
-    fun labelFor(ctx: Context, pkg: String): String = runCatching {
+    fun labelFor(ctx: Context, pkg: String): String = if (pkg == SOUNDS) "Sleep Sounds" else runCatching {
         val pm = ctx.packageManager
         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
@@ -115,6 +120,10 @@ object Apps {
     fun trim() = synchronized(this) { cache.clear() }
 
     fun launch(ctx: Context, pkg: String): Boolean {
+        if (pkg == SOUNDS) {
+            ctx.startActivity(Intent(ctx, SleepSoundsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return true
+        }
         val pm = ctx.packageManager
         val intent = pm.getLeanbackLaunchIntentForPackage(pkg)
             ?: pm.getLaunchIntentForPackage(pkg)

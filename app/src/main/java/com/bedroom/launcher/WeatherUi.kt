@@ -74,12 +74,40 @@ fun WeatherPanel(weather: Weather?, placeSet: Boolean, p: Palette) {
                     add("Wind ${weather.windMph} mph")
                 }
                 Text(parts.joinToString(" · "), color = p.subtext, fontSize = 12.sp, maxLines = 1)
+                if (weather.sunrise.isNotBlank() && weather.sunset.isNotBlank()) {
+                    val is24 = android.text.format.DateFormat.is24HourFormat(androidx.compose.ui.platform.LocalContext.current)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SunMark(up = true, p = p)
+                        Text(" ${clockTime(weather.sunrise, is24)}   ", color = p.subtext, fontSize = 12.sp, maxLines = 1)
+                        SunMark(up = false, p = p)
+                        Text(" ${clockTime(weather.sunset, is24)}", color = p.subtext, fontSize = 12.sp, maxLines = 1)
+                    }
+                }
             }
         }
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             weather.days.take(5).forEachIndexed { i, d -> DayCell(d, i, p) }
         }
+    }
+}
+
+/** A tiny half-sun on the horizon with an arrow: up = sunrise, down = sunset. */
+@Composable
+private fun SunMark(up: Boolean, p: Palette) {
+    val sun = Color(0xFFFFCF6B)
+    Canvas(Modifier.size(14.dp).graphicsLayer(alpha = p.text.alpha)) {
+        val s = size.minDimension
+        val horizon = s * 0.72f
+        drawArc(sun, 180f, 180f, true, Offset(s * 0.22f, horizon - s * 0.28f), Size(s * 0.56f, s * 0.56f))
+        drawLine(p.subtext, Offset(s * 0.05f, horizon), Offset(s * 0.95f, horizon), strokeWidth = s * 0.08f, cap = StrokeCap.Round)
+        val x = s * 0.5f
+        val (y0, y1) = if (up) s * 0.36f to s * 0.06f else s * 0.06f to s * 0.36f
+        drawLine(sun, Offset(x, y0), Offset(x, y1), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
+        val tip = y1
+        val dir = if (up) 1f else -1f
+        drawLine(sun, Offset(x, tip), Offset(x - s * 0.12f, tip + dir * s * 0.12f), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
+        drawLine(sun, Offset(x, tip), Offset(x + s * 0.12f, tip + dir * s * 0.12f), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
     }
 }
 

@@ -1,5 +1,7 @@
 package com.bedroom.remote
 
+import androidx.compose.foundation.gestures.detectDragGestures
+
 import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -310,12 +312,24 @@ private fun RemoteTab(tv: TvClient, onKeyboard: () -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
 
-        // ---- Hero: the D-pad and the three everyday buttons
+        // ---- Hero: the D-pad (or the touchpad) and the three everyday buttons
+        val rctx = LocalContext.current
+        val prefs = remember { rctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE) }
+        var pad by remember { mutableStateOf(prefs.getInt("pad", 0)) }
         HeroCard(Ui.HeroBlue) {
-            Dpad(
-                onKey = { tv.key(scope, it) },
-                modifier = Modifier.size(260.dp),
-            )
+            SegmentRow(listOf("D-pad", "Touchpad"), pad, Modifier.fillMaxWidth()) {
+                pad = it
+                prefs.edit().putInt("pad", it).apply()
+            }
+            Spacer(Modifier.height(14.dp))
+            if (pad == 1) {
+                Touchpad(onKey = { tv.key(scope, it) }, modifier = Modifier.fillMaxWidth().height(260.dp))
+            } else {
+                Dpad(
+                    onKey = { tv.key(scope, it) },
+                    modifier = Modifier.size(260.dp),
+                )
+            }
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RoundAction("Back", Modifier.weight(1f)) { tv.key(scope, "back") }
@@ -430,6 +444,68 @@ private fun Dpad(onKey: (String) -> Unit, modifier: Modifier) {
         PressButton({ onKey("right") }, Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).size(arrow), CircleShape, repeat = true, base = Color.Transparent) { ArrowGlyph(TextC, 90f) }
         PressButton({ onKey("ok") }, Modifier.size(104.dp), CircleShape, base = Color(0xFF22304D), pressed = Color(0xFF34476F)) {
             Text("OK", color = Gold, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/**
+ * Swipe to move around the TV: every ~44 dp of finger travel is one arrow press (keep sliding for more),
+ * a tap is OK and a long press is Back. A small buzz on each step so you can feel it without looking.
+ */
+@Composable
+private fun Touchpad(onKey: (String) -> Unit, modifier: Modifier) {
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val stepPx = with(androidx.compose.ui.platform.LocalDensity.current) { 44.dp.toPx() }
+    var flash by remember { mutableStateOf<String?>(null) }
+    Box(
+        modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(Color(0xFF0D1528))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(28.dp))
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onKey("ok"); flash = "OK"; haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove) },
+                    onLongPress = { onKey("back"); flash = "Back"; haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) },
+                )
+            }
+            .pointerInput(Unit) {
+                var accX = 0f
+                var accY = 0f
+                detectDragGestures(
+                    onDragStart = { accX = 0f; accY = 0f },
+                    onDrag = { change, d ->
+                        change.consume()
+                        accX += d.x
+                        accY += d.y
+                        // Follow the stronger direction; the other one is ignored for this step.
+                        while (kotlin.math.abs(accX) >= stepPx || kotlin.math.abs(accY) >= stepPx) {
+                            val k = if (kotlin.math.abs(accX) >= kotlin.math.abs(accY)) {
+                                val dir = if (accX > 0) "right" else "left"
+                                accX -= if (accX > 0) stepPx else -stepPx
+                                accY = 0f
+                                dir
+                            } else {
+                                val dir = if (accY > 0) "down" else "up"
+                                accY -= if (accY > 0) stepPx else -stepPx
+                                accX = 0f
+                                dir
+                            }
+                            onKey(k)
+                            flash = k
+                            haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        }
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                when (flash) { "up" -> "↑"; "down" -> "↓"; "left" -> "←"; "right" -> "→"; null -> "•"; else -> flash!! },
+                color = Gold, fontSize = 30.sp, fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Swipe to move · tap for OK · hold for Back", color = Sub, fontSize = 13.sp)
         }
     }
 }

@@ -1,4 +1,4 @@
-# Bedroom TV control panel (v4, Material look). Start it by double-clicking "TV Control Panel.cmd" in the project folder.
+# Bedroom TV control panel (v4.2, Material look). Start it by double-clicking "TV Control Panel.cmd" in the project folder.
 #
 # Look:  rounded cards and tiles drawn with anti-aliasing (small C# controls compiled at start-up),
 #        Windows' own icon font (Segoe Fluent Icons / Segoe MDL2 Assets) for every button.
@@ -8,6 +8,9 @@
 #
 # NOTE: PowerShell variable names ignore case ($card and $CARD are the same variable), so the theme,
 # fonts and icons use names that nothing else reuses: $Theme, $Fonts, $Icon.
+
+# -Tray: start hidden in the notification area (used by "Start with Windows").
+param([switch]$Tray)
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -699,6 +702,7 @@ function Refresh-Status {
         $statRam.FooterColor = if ($mem -lt 200) { $Theme.Gold } else { $Theme.Good }
         $statDisk.Value = "$free"; $statDisk.Footer = "On the TV's built-in storage"; $statDisk.FooterColor = $Theme.Sub
         $statApp.Value = (Friendly-App $app); $statApp.Footer = if ($app) { $app } else { "Nothing reported" }; $statApp.FooterColor = $Theme.Sub
+        Watch-Play $app
         foreach ($c in @($statTv, $statRam, $statDisk, $statApp)) { $c.Invalidate() }
     }
 }
@@ -1735,6 +1739,8 @@ New-Tile $card $Icon.Upload "Send saves..." {
 } "normal" 172 | Out-Null
 New-Tile $card $Icon.List "Saves on TV" { RunScript "saves.ps1" @("-List") } "normal" 172 | Out-Null
 New-Tile $card $Icon.Folder "Open backups" { New-Item -ItemType Directory -Force -Path $savesDir | Out-Null; Start-Process $savesDir } "quiet" 172 | Out-Null
+$autoSavesTile = New-Tile $card $Icon.Clock "After playing: on" { Toggle-AutoSaves } "normal" 172
+New-Note $card "After playing: when you leave RetroArch, new saves are copied to Documents\RetroArch Saves\After playing (last 10 kept) while the panel is open or in the tray." 352
 
 # =====================================================================
 # Bedroom
@@ -1797,7 +1803,9 @@ function Read-Health {
         param($out)
         $txt = ($out -join " ")
         if ($txt -match 'data="(\{.*\})"') {
-            try { $healthLabel.Text = Format-Health ($Matches[1] -replace '\\"', '"') } catch { $healthLabel.Text = "Couldn't read the report: $_" }
+            $hj = $Matches[1] -replace '\\"', '"'
+            try { $healthLabel.Text = Format-Health $hj } catch { $healthLabel.Text = "Couldn't read the report: $_" }
+            try { Check-Restart ($hj | ConvertFrom-Json) } catch {}
         } else {
             $healthLabel.Text = "Can't reach the TV (is it on?). Update Bedroom Home to 1.9.0 or newer for this card."
         }
@@ -1973,6 +1981,175 @@ New-Note $card ("Button Mapper remaps (Netflix -> YouTube, VUDU -> Hulu): change
     "That also disconnects this PC until you accept the prompt on the TV again.`r`n`r`n" +
     "Games and save backups on the PC are never deleted by this panel.")
 
+# =====================================================================
+# Tray icon, notifications and automatic save backups (v4.2)
+# =====================================================================
+if ($null -eq $Settings.CloseToTray) { $Settings.CloseToTray = $true }
+if ($null -eq $Settings.AutoSaves) { $Settings.AutoSaves = $true }
+
+# A small TV picture for the tray, drawn here (no icon file needed).
+function New-TrayIcon {
+    $bmp = New-Object Drawing.Bitmap 32, 32
+    $g = [Drawing.Graphics]::FromImage($bmp)
+    $g.SmoothingMode = "AntiAlias"
+    $g.Clear([Drawing.Color]::Transparent)
+    $fill = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(255, 124, 108, 255))
+    $g.FillRectangle($fill, 2, 5, 28, 18)
+    $g.FillRectangle((New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(255, 20, 24, 44))), 5, 8, 22, 12)
+    $g.FillEllipse((New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(255, 255, 214, 130))), 17, 10, 7, 7)
+    $g.FillRectangle($fill, 10, 25, 12, 3)
+    $g.Dispose()
+    return [Drawing.Icon]::FromHandle($bmp.GetHicon())
+}
+
+$notifyTray = New-Object Windows.Forms.NotifyIcon
+$notifyTray.Icon = New-TrayIcon
+$notifyTray.Text = "Bedroom TV"
+$notifyTray.Visible = $true
+$form.Icon = $notifyTray.Icon
+
+function Notify([string]$title, [string]$text) {
+    $notifyTray.BalloonTipTitle = $title
+    $notifyTray.BalloonTipText = $text
+    $notifyTray.ShowBalloonTip(6000)
+}
+
+function Show-FromTray {
+    $form.ShowInTaskbar = $true
+    $form.Show()
+    $form.WindowState = "Normal"
+    $form.Activate()
+}
+
+function Hide-ToTray([switch]$Quiet) {
+    if ($Script:LiveOn) { Set-Live $false }
+    Stop-SmoothVideo
+    $form.Hide()
+    if (-not $Quiet -and -not $Settings.TrayHintShown) {
+        Notify "Bedroom TV is still running" "It's in the tray (by the clock). Double-click it to open the panel, or right-click for quick buttons and Exit."
+        $Settings.TrayHintShown = $true; Save-Settings
+    }
+}
+
+# Start with Windows = a shortcut in your Startup folder that opens the panel straight into the tray.
+$startupLink = Join-Path ([Environment]::GetFolderPath("Startup")) "Bedroom TV panel.lnk"
+function Set-StartWithWindows([bool]$on) {
+    if ($on) {
+        $sh = New-Object -ComObject WScript.Shell
+        $lnk = $sh.CreateShortcut($startupLink)
+        $lnk.TargetPath = Join-Path $PSHOME "powershell.exe"
+        $lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File `"$(Join-Path $tools 'panel.ps1')`" -Tray"
+        $lnk.WorkingDirectory = $tools
+        $lnk.Description = "Bedroom TV control panel (in the tray)"
+        $lnk.Save()
+        Say "The panel will start in the tray when you sign in to Windows."
+    } else {
+        Remove-Item -LiteralPath $startupLink -ErrorAction SilentlyContinue
+        Say "The panel won't start with Windows any more."
+    }
+}
+
+$trayMenu = New-Object Windows.Forms.ContextMenuStrip
+function Tray-Item([string]$text, [scriptblock]$act) { $i = $trayMenu.Items.Add($text); $i.Add_Click($act); return $i }
+(Tray-Item "Open panel" { Show-FromTray }).Font = New-Object Drawing.Font($trayMenu.Font, [Drawing.FontStyle]::Bold)
+[void]$trayMenu.Items.Add((New-Object Windows.Forms.ToolStripSeparator))
+[void](Tray-Item "Start bedtime" { TvOp "bedtime" })
+[void](Tray-Item "Rest the TV" { TvOp "rest" })
+[void](Tray-Item "Wake the TV" { TvOp "wake" })
+[void](Tray-Item "Screen off (sound on)" { TvOp "off" })
+[void](Tray-Item "Screen back on" { TvOp "on" })
+[void]$trayMenu.Items.Add((New-Object Windows.Forms.ToolStripSeparator))
+[void](Tray-Item "Back up saves now" { Backup-SavesNow })
+$miAuto = Tray-Item "Back up saves after playing" { Toggle-AutoSaves }
+$miStart = Tray-Item "Start with Windows (in the tray)" { $on = -not (Test-Path -LiteralPath $startupLink); Set-StartWithWindows $on; $miStart.Checked = $on }
+$miClose = Tray-Item "Close button hides to the tray" { $Settings.CloseToTray = -not $Settings.CloseToTray; Save-Settings; $miClose.Checked = $Settings.CloseToTray }
+[void]$trayMenu.Items.Add((New-Object Windows.Forms.ToolStripSeparator))
+[void](Tray-Item "Exit" { $Script:ReallyExit = $true; $form.Close() })
+$trayMenu.Add_Opening({
+    $miAuto.Checked = [bool]$Settings.AutoSaves
+    $miStart.Checked = Test-Path -LiteralPath $startupLink
+    $miClose.Checked = [bool]$Settings.CloseToTray
+})
+$notifyTray.ContextMenuStrip = $trayMenu
+$notifyTray.Add_DoubleClick({ Show-FromTray })
+$notifyTray.Add_BalloonTipClicked({ Show-FromTray })
+
+# ---- Notifications: the TV restarted by itself
+$Script:LastUptime = $null
+function Check-Restart($h) {
+    $up = [int]$h.uptimeMin
+    if ($null -ne $Script:LastUptime -and $up + 3 -lt $Script:LastUptime) {
+        Notify "The TV restarted" ("It started again {0} min ago ({1}). Bedroom TV panel > Bedroom > Why did it restart? has the details." -f $up, $h.bootReason)
+    }
+    $Script:LastUptime = $up
+}
+
+# ---- Automatic save backup after playing
+$afterDir = Join-Path $savesDir "After playing"
+$Script:RaFrontAt = $null
+$Script:LastAutoCheck = $null
+
+function Update-AutoSavesTile {
+    $autoSavesTile.Caption = if ($Settings.AutoSaves) { "After playing: on" } else { "After playing: off" }
+    $autoSavesTile.Invalidate()
+}
+function Toggle-AutoSaves {
+    $Settings.AutoSaves = -not $Settings.AutoSaves; Save-Settings
+    Update-AutoSavesTile
+    Say ("Back up saves after playing: " + $(if ($Settings.AutoSaves) { "on" } else { "off" }))
+}
+
+# Called with the app on screen every 30 s (TV status). RetroArch on screen = a session in progress; once it
+# has been gone for 90 s, check for new saves. Otherwise a quiet check every 10 minutes catches games played
+# while the panel was closed.
+function Watch-Play([string]$app) {
+    if ($app -like "com.retroarch*") { $Script:RaFrontAt = Get-Date; return }
+    if (-not $Settings.AutoSaves) { return }
+    if ($Jobs | Where-Object { $_.Label -eq "~newsaves" -or $_.Label -like "saves.ps1*" }) { return }
+    $now = Get-Date
+    if ($Script:RaFrontAt) {
+        if (($now - $Script:RaFrontAt).TotalSeconds -lt 90) { return }
+    } elseif ($Script:LastAutoCheck -and ($now - $Script:LastAutoCheck).TotalMinutes -lt 10) { return }
+    $Script:RaFrontAt = $null
+    $Script:LastAutoCheck = $now
+    Backup-SavesIfNew
+}
+
+# Newest save time on the TV (seconds since 1970), read-only.
+function Backup-SavesIfNew([switch]$Force) {
+    Run-Bg "~newsaves" {
+        param($a, $t)
+        $names = "-iname '*.srm' -o -iname '*.sav' -o -iname '*.rtc' -o -iname '*.dsv' -o -iname '*.mcr' -o -iname '*.mcd' -o -iname '*.eep' -o -iname '*.fla' -o -iname '*.sra' -o -iname '*.mpk' -o -iname '*.nv' -o -iname '*.state' -o -iname '*.state[0-9]*' -o -iname '*.state.auto'"
+        $cmd = "for d in /sdcard/Android/data/com.retroarch/files /sdcard/RetroArch; do [ -d `$d ] && find `$d -type f \( $names \) ! -path '*/_replaced/*' -exec stat -c %Y {} + ; done 2>/dev/null | sort -n | tail -n 1"
+        "@@" + ((& $a -s $t shell $cmd 2>&1 | ForEach-Object { "$_" }) -join "").Trim()
+    } @($adb, $Tv) {
+        param($out)
+        $line = $out | Where-Object { $_ -like "@@*" } | Select-Object -First 1
+        $newest = 0L
+        if (-not $line -or -not [long]::TryParse($line.Substring(2), [ref]$newest) -or $newest -le 0) { return }
+        $last = 0L; [void][long]::TryParse([string]$Settings.LastSaveTime, [ref]$last)
+        if ($newest -le $last -and -not $Force) { return }
+        $dest = Join-Path $afterDir (Get-Date -Format "yyyy-MM-dd_HHmm")
+        $Script:PendingSaveTime = $newest
+        RunScript "saves.ps1" @("-Backup", "-To", $dest) {
+            param($o)
+            $n = ($o | Where-Object { $_ -match "Backed up (\d+) save" } | ForEach-Object { [int]$Matches[1] }) | Select-Object -First 1
+            if ($n) {
+                $Settings.LastSaveTime = [string]$Script:PendingSaveTime; Save-Settings
+                # Keep the newest 10 automatic backups (only in the "After playing" folder).
+                Get-ChildItem -LiteralPath $afterDir -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}_\d{4}$' } | Sort-Object Name -Descending | Select-Object -Skip 10 |
+                    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
+                Notify "Game saves backed up" "$n save file(s) copied to Documents\RetroArch Saves\After playing."
+            }
+        }
+    }
+}
+function Backup-SavesNow { Backup-SavesIfNew -Force }
+
+Update-AutoSavesTile
+$form.Add_Shown({ $Script:LastAutoCheck = (Get-Date).AddMinutes(-9) }) # first quiet check about a minute after start
+
 # ---------- Go ----------
 Show-Page "Remote"
 $form.Add_Shown({
@@ -1984,5 +2161,20 @@ $form.Add_Shown({
 })
 $form.Add_Shown({ Read-Brightness })
 $form.Add_Shown({ Read-Health })
-$form.Add_FormClosing({ $jobTimer.Stop(); $statusTimer.Stop(); $liveTimer.Stop(); Stop-SmoothVideo; Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue })
-[void]$form.ShowDialog()
+$form.Add_FormClosing({
+    param($sender, $e)
+    # Closing the window hides it in the tray (unless that's turned off, Windows is shutting down, or Exit was picked).
+    if ($Settings.CloseToTray -and -not $Script:ReallyExit -and $e.CloseReason -eq [Windows.Forms.CloseReason]::UserClosing) {
+        $e.Cancel = $true
+        Hide-ToTray
+        return
+    }
+    $jobTimer.Stop(); $statusTimer.Stop(); $liveTimer.Stop(); $healthTimer.Stop(); Stop-SmoothVideo
+    $notifyTray.Visible = $false; $notifyTray.Dispose()
+    Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue
+})
+if ($Tray) {
+    $form.WindowState = "Minimized"; $form.ShowInTaskbar = $false
+    $form.Add_Shown({ Hide-ToTray -Quiet })
+}
+[Windows.Forms.Application]::Run($form)

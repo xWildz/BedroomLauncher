@@ -63,12 +63,15 @@ object BedroomPrefs {
             .put("nightWarm", p.getBoolean("nightWarm", true))
             .put("night", NightMode.isOn)
             .put("nightClose", p.getBoolean("nightClose", true))
+            .put("weatherBg", p.getBoolean("weatherBg", true))
+            .put("theme", p.getString("theme", "auto"))
+            .put("themes", org.json.JSONArray(Look.THEMES))
             .put("maxVolume", ctx.getSystemService(AudioManager::class.java)?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100)
             .put("photos", PhotoStore.count(ctx))
     }
 
     private val INTS = setOf("alarmHour", "alarmMin", "alarmDays", "alarmVolFrom", "alarmVolTo", "alarmRamp", "bedMinutes", "bedVolume", "frameSecs", "frameRest", "nightLevel")
-    private val BOOLS = setOf("alarmOn", "bedNight", "nightWarm", "frameShuffle", "frameClock", "frameWeather", "frameZoom", "frameFill", "nightClose")
+    private val BOOLS = setOf("alarmOn", "bedNight", "nightWarm", "frameShuffle", "frameClock", "frameWeather", "frameZoom", "frameFill", "nightClose", "weatherBg")
 
     /** Saves any settings present in the request, then re-arms the alarm. */
     fun set(ctx: Context, uri: Uri): String {
@@ -79,6 +82,7 @@ object BedroomPrefs {
                 k in INTS -> v.toIntOrNull()?.let { e.putInt(k, it.coerceIn(0, 1440)) }
                 k in BOOLS -> e.putBoolean(k, v == "1" || v == "true")
                 k == "idle" && v in setOf("off", "rest", "frame") -> e.putString(k, v)
+                k == "theme" && v in Look.THEMES -> e.putString(k, v)
                 k == "frameAlbum" -> if (v.isBlank() || v in PhotoStore.albums(ctx)) e.putString(k, v)
                 k == "bedUrl" -> {
                     val u = v.trim().take(300)
@@ -88,6 +92,7 @@ object BedroomPrefs {
         }
         e.commit()
         Alarm.schedule(ctx)
+        Look.load(ctx)
         return json(ctx).toString()
     }
 }

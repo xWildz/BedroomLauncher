@@ -13,13 +13,16 @@ android {
         minSdk = 24
         targetSdk = 35
         // Bump versionCode on EVERY build that goes to the TV.
-        versionCode = 38
-        versionName = "1.9.0"
+        versionCode = 39
+        versionName = "2.0.0"
     }
 
     buildTypes {
+        // Release = what update.ps1 installs: not debuggable, signed with the same key as before (this PC's
+        // Android key), so it installs over the old version and nothing on the TV is lost.
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

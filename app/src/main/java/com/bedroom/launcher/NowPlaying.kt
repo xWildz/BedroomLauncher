@@ -61,7 +61,7 @@ object NowPlaying {
         }
     }
 
-    private fun controllers(ctx: Context): List<MediaController> {
+    fun controllers(ctx: Context): List<MediaController> {
         if (!hasAccess(ctx)) return emptyList()
         return try {
             ctx.getSystemService(MediaSessionManager::class.java).getActiveSessions(component(ctx))
@@ -70,7 +70,7 @@ object NowPlaying {
         }
     }
 
-    private fun isActive(c: MediaController) = c.playbackState?.state in setOf(
+    fun isActive(c: MediaController) = c.playbackState?.state in setOf(
         PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING,
         PlaybackState.STATE_FAST_FORWARDING, PlaybackState.STATE_REWINDING,
     )
@@ -80,7 +80,7 @@ object NowPlaying {
         if (pkg != null) list.firstOrNull { it.packageName == pkg }
         else list.firstOrNull { isActive(it) } ?: list.firstOrNull { it.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) != null }
 
-    private fun artBitmap(m: MediaMetadata?): Bitmap? = m?.let {
+    fun artBitmap(m: MediaMetadata?): Bitmap? = m?.let {
         it.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: it.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: it.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)

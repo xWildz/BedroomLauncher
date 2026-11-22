@@ -12,8 +12,8 @@ android {
         applicationId = "com.bedroom.remote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "3.5 Healthy Hedgehog"
+        versionCode = 26
+        versionName = "3.6 Cozy Capybara"
     }
 
     buildTypes {
@@ -21,8 +21,10 @@ android {
         debug {
             isDebuggable = false
         }
+        // Release = what update.ps1 builds: signed with the same key as the debug APKs, so it installs over them.
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

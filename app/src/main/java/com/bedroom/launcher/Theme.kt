@@ -2,26 +2,14 @@ package com.bedroom.launcher
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.delay
 import java.util.Calendar
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
 enum class Phase { Dawn, Day, Golden, Evening, Night }
 
@@ -81,45 +69,5 @@ fun rememberNowMillis(): State<Long> = produceState(System.currentTimeMillis()) 
     while (true) {
         value = System.currentTimeMillis()
         delay(1000L - value % 1000L)
-    }
-}
-
-/**
- * Soft light behind everything. Drawn as a still image (v0.6): the old 90-second drifting
- * animation redrew the full screen every frame, which cost memory and CPU this TV needs for Hulu.
- * It still fades between day/evening/night palettes.
- */
-@Composable
-fun Backdrop(p: Palette) {
-    val phase = 0.15f // fixed position of the two glows
-    Canvas(Modifier.fillMaxSize()) {
-        val tau = 2f * PI.toFloat()
-        drawRect(Brush.verticalGradient(listOf(p.top, p.bottom)))
-
-        val r1 = size.height * 0.95f
-        val c1 = Offset(
-            size.width * (0.78f + 0.07f * sin(tau * phase)),
-            size.height * (0.28f + 0.06f * cos(tau * phase)),
-        )
-        drawCircle(Brush.radialGradient(listOf(p.glow, Color.Transparent), center = c1, radius = r1), r1, c1)
-
-        val r2 = size.height * 0.7f
-        val c2 = Offset(
-            size.width * (0.18f + 0.05f * cos(tau * 2f * phase)),
-            size.height * (0.88f + 0.04f * sin(tau * phase)),
-        )
-        drawCircle(
-            Brush.radialGradient(listOf(p.glow.copy(alpha = p.glow.alpha * 0.6f), Color.Transparent), center = c2, radius = r2),
-            r2, c2,
-        )
-
-        // Gentle darkening toward the bottom so tile labels stay readable.
-        drawRect(
-            Brush.verticalGradient(
-                listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)),
-                startY = size.height * 0.4f,
-                endY = size.height,
-            ),
-        )
     }
 }

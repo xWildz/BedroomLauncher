@@ -1,5 +1,6 @@
 package com.bedroom.remote
 
+import androidx.compose.foundation.layout.aspectRatio
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -125,6 +126,8 @@ fun GamesTab(tv: TvClient) {
     var total by remember { mutableLongStateOf(0L) }
     var results by remember { mutableStateOf<List<Pair<String, Boolean>>>(emptyList()) }
     var openSystems by remember { mutableStateOf(setOf<String>()) }
+    val coverPrefs = remember { ctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE) }
+    var covers by remember { mutableStateOf(coverPrefs.getBoolean("covers", true)) }
     var openGames by remember { mutableStateOf(setOf<String>()) }
     var pendingDownload by remember { mutableStateOf<SaveFile?>(null) }
     var askStop by remember { mutableStateOf<List<Pair<String, ByteArray>>?>(null) }
@@ -356,6 +359,9 @@ fun GamesTab(tv: TvClient) {
                     },
                     color = if (err != null) GWarn else GSub, fontSize = 13.sp, modifier = Modifier.weight(1f),
                 )
+                TextButton(onClick = { covers = !covers; coverPrefs.edit().putBoolean("covers", covers).apply() }) {
+                    Text(if (covers) "List" else "Covers", color = GAccent)
+                }
                 TextButton(onClick = { scope.launch { refreshAll() } }, enabled = busy == null) { Text("Refresh", color = GAccent) }
             }
             Text("Tap a system to see its games, a game to see its saves, and a save to copy it to your phone.", color = GSub, fontSize = 11.sp)
@@ -381,7 +387,28 @@ fun GamesTab(tv: TvClient) {
                         color = GSub, fontSize = 13.sp,
                     )
                 }
-                if (expanded) {
+                if (expanded && covers) {
+                    // Cover grid: 3 across; a game's saves open under its row.
+                    sys.files.chunked(3).forEach { row ->
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { f ->
+                                val key = sys.system + "/" + f.name
+                                val gs = savesByGame[gameKey(f.name)].orEmpty()
+                                CoverTile(sys.system, f, gs.size, key in openGames, Modifier.weight(1f)) {
+                                    if (gs.isNotEmpty()) openGames = if (key in openGames) openGames - key else openGames + key
+                                }
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                        row.forEach { f ->
+                            if ((sys.system + "/" + f.name) in openGames) {
+                                Text(f.name.substringBeforeLast('.'), color = GText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 14.dp, top = 4.dp))
+                                savesByGame[gameKey(f.name)].orEmpty().forEach { sv -> SaveRow(sv, enabled = busy == null) { pendingDownload = sv; saveOnePicker.launch(sv.name) } }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                } else if (expanded) {
                     sys.files.forEach { f ->
                         val key = sys.system + "/" + f.name
                         val gs = savesByGame[gameKey(f.name)].orEmpty()
@@ -452,6 +479,34 @@ fun GamesTab(tv: TvClient) {
             dismissButton = { TextButton(onClick = { askStop = null }) { Text("Cancel") } },
             containerColor = Color(0xFF141E33),
         )
+    }
+}
+
+/** One game as a cover (from the libretro thumbnail library), with its name and how many saves it has. */
+@Composable
+private fun CoverTile(system: String, f: RomFile, saves: Int, open: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    var art by remember(system, f.name) { mutableStateOf(BoxArt.cached(system, f.name)) }
+    LaunchedEffect(system, f.name) { if (art == null) art = BoxArt.get(ctx, system, f.name) }
+    val title = f.name.substringBeforeLast('.').replace(Regex("""\s*[\[(][^\])]*[\])]"""), "").trim().ifBlank { f.name }
+    Column(modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(0.78f).clip(RoundedCornerShape(12.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF2B2346), Color(0xFF141E33))))
+                .border(if (open) 2.dp else 1.dp, if (open) GGold else Ui.Edge, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            val b = art
+            if (b != null) androidx.compose.foundation.Image(b, title, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            else Text(title, color = GText, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(8.dp))
+            if (saves > 0) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(5.dp).clip(RoundedCornerShape(9.dp)).background(Color.Black.copy(alpha = 0.65f))
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                ) { Text("$saves save" + if (saves > 1) "s" else "", color = GGold, fontSize = 10.sp) }
+            }
+        }
+        Text(title, color = GSub, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp, modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp))
     }
 }
 

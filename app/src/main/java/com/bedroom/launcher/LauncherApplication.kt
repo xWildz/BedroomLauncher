@@ -19,6 +19,10 @@ class LauncherApplication : Application() {
         Health.start(this)         // restart reason + history for the phone / PC
         NightCleanup.start(this)   // closes idle video apps after an hour of rest (never YouTube)
         WifiRepair.start(this)     // reconnects Wi-Fi if it has been down for 3 minutes
+        MemoryWatch.start(this)    // frees Bedroom Home's caches if memory runs very low while nobody's watching
+        Thermal.start(this)        // the TV chip's temperature (health report + small reading on the home screen)
+        UpNext.start(this)         // remembers what you were watching (home screen's "Up next")
+        Look.load(this)            // background / seasonal theme chosen on the phone
         LinkService.start(this)    // keeps all of the above alive while other apps are on screen
     }
 

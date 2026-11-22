@@ -6,6 +6,7 @@ build/
 local.properties
 *.iml
 *.apk
+releases/
 
 # ---- Never commit signing keys
 *.jks

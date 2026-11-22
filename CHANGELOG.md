@@ -8,9 +8,9 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 | Current versions | |
 |---|---|
-| Bedroom Home (TV) | **1.9.0** (versionCode 38) |
-| TV Remote (phone) | **3.5 "Healthy Hedgehog"** (versionCode 25) |
-| PC control panel | **v4.1** |
+| Bedroom Home (TV) | **2.0.0** (versionCode 39) |
+| TV Remote (phone) | **3.6 "Cozy Capybara"** (versionCode 26) |
+| PC control panel | **v4.2** |
 
 > Older entries were reconstructed from the project notes and the APKs built along the way, so very early
 > releases are summarised rather than listed one by one.
@@ -18,6 +18,23 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## Bedroom Home (TV app)
+
+### 2.0.0 — 2026-11-22
+- **Sleep Sounds:** its own app in the TV's app list (and in All apps). Rain, ocean, fan, deep / soft / white
+  noise, made live on the TV (no recordings). Plays alongside other apps without pausing them (never interrupts
+  YouTube), keeps going after you leave, sleep timer with a one-minute fade-out, volume, and a Screen off button.
+- **Up next:** a button in the top row (with a picture of the latest item) opens what you were part-way through
+  in YouTube, YouTube Music, Hulu and other apps. YouTube items reopen at the same spot. Hold OK to remove one.
+  (Android's own "Watch next" list is locked to system apps on this TV, so Bedroom Home keeps its own.)
+- **Weather background:** the home screen backdrop matches the weather: stars on a clear night, rain streaks,
+  clouds, snow, fog. A still picture, so it costs nothing while the TV sits on the home screen.
+- **Seasonal themes:** autumn leaves, Halloween bats, holiday lights, snowflakes, spring petals, summer fireflies;
+  automatic by date or picked on the phone. Kept to the edges of the screen.
+- **Sunrise and sunset** times under the weather.
+- **Memory watchdog:** if memory runs very low while nobody's watching, Bedroom Home frees its own caches.
+- Temperature in the health report and a small reading on the home screen, on TVs that report one (this Philips
+  set doesn't, so nothing is shown and it stops checking).
+- Release builds: installed by `tools\update.cmd`, not debuggable, same signing key (installs over the old one).
 
 ### 1.9.0 — 2026-11-22
 - **Fix: the TV restarting by itself at night.** The TV's logs showed it being reset by its own hardware while
@@ -112,6 +129,17 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 ## TV Remote (phone app)
 
+### 3.6 "Cozy Capybara" — 2026-11-22
+- **Quick Settings tile:** "Bedroom TV" in the phone's pull-down shade. Lit = awake, tap to rest / wake;
+  long-press opens the app. (Add it with the pencil icon in Quick Settings.)
+- **Touchpad:** D-pad | Touchpad switch on the Remote tab. Swipe to move (one step per finger-width, with a
+  little buzz), tap for OK, hold for Back.
+- **Game covers:** the Games tab shows box art for each game (from RetroArch's thumbnail library, saved on the
+  phone after the first download). List | Covers switch next to Refresh.
+- **Home screen look** card in the Bedroom tab: weather background on/off and the seasonal theme.
+- Release build (not debuggable), same signing key, installs over 3.5.
+- The phone's volume buttons already control the TV while the app is open (since 2.x).
+
 ### 3.5 "Healthy Hedgehog" — 2026-11-22
 - **TV health** card in the Bedroom tab (restarts, memory, what Bedroom Home did overnight) with the
   "Close idle video apps overnight" switch.
@@ -189,6 +217,16 @@ Versions 1.3, 1.8, 2.1, 2.2 and 2.4 were fix releases with no visible changes.
 ---
 
 ## PC tools
+
+### Control panel v4.2 — 2026-11-22
+- **Lives in the tray:** closing the window hides it next to the clock. Double-click to open; right-click for
+  Bedtime, Rest / Wake, Screen off / on, Back up saves now, and Exit. Optional "Start with Windows (in the tray)".
+- **Notifications** when the TV restarts by itself and when game saves are backed up.
+- **Saves backed up after playing:** about 90 seconds after you leave RetroArch, new saves are copied to
+  Documents\RetroArch Saves\After playing (keeps the last 10). On/off on the Games page or in the tray menu.
+- `tools\update.cmd`: one click builds release versions of both apps, installs the TV app over the current one
+  and puts the phone APK in `releases\` (log: update-log.txt).
+- `tools\probe.cmd`: read-only check of TV features (temperature sensors, Watch next access).
 
 ### Control panel v4.1 — 2026-11-22
 - **TV health** card on the Bedroom page (refreshes every 2 minutes).

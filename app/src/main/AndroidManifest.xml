@@ -115,6 +115,22 @@
             android:taskAffinity="com.bedroom.launcher.frame"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
 
+        <!-- "Sleep Sounds": its own app in the TV's app list (rain, ocean, fan, noise). -->
+        <activity
+            android:name=".SleepSoundsActivity"
+            android:exported="true"
+            android:label="Sleep Sounds"
+            android:icon="@drawable/ic_sounds"
+            android:banner="@drawable/banner_sounds"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.bedroom.launcher.sounds"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- Sleep timer alarm (internal only). -->
         <receiver android:name=".SleepReceiver" android:exported="false" />
 

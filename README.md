@@ -11,9 +11,9 @@ features use this TV's MStar chip service and may not work elsewhere.
 
 | Folder | What | Version |
 |---|---|---|
-| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **1.9.0** |
-| `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.5 "Healthy Hedgehog"** |
-| `tools/` | **TV Control Panel** and PC scripts (Windows, PowerShell) | panel **v4.1** |
+| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.0.0** |
+| `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.6 "Cozy Capybara"** |
+| `tools/` | **TV Control Panel** and PC scripts (Windows, PowerShell) | panel **v4.2** |
 
 What changed in each version: [`CHANGELOG.md`](CHANGELOG.md).
 Device notes (what was changed on the TV and how to undo it): `DEVICES.md`.
@@ -33,7 +33,11 @@ Device notes (what was changed on the TV and how to undo it): `DEVICES.md`.
 
 ## Building
 
-Open this folder in Android Studio.
+**One click:** double-click `tools\update.cmd`. It builds release versions of both apps, installs the TV app
+over the current one (same signing key, nothing is lost) and puts the phone APK in `releases\`. It only reopens
+the home screen if that was what was on screen. Log: `update-log.txt`. Bump `versionCode` first.
+
+Or open this folder in Android Studio:
 
 - **TV app:** run configuration `app`, device *Funai PHILIPS 4K TV*, press Debug/Run.
   Bump `versionCode` in `app/build.gradle.kts` first (every build that goes to the TV).
@@ -61,6 +65,8 @@ Open this folder in Android Studio.
 | `RemoteServer.kt` | The phone/PC API (port 8765) |
 | `KeyInjector.kt`, `GamepadBridge.kt`, `UhidHelper.kt` | Remote keys and virtual gamepads |
 | `ScreenOff.kt` | Screen off / rest, backlight helper, broadcast receiver used by the PC panel |
+| `Health.kt` | Idle detection, health report, night clean-up, Wi-Fi repair, memory watchdog, temperature |
+| `Look.kt`, `UpNext.kt`, `SleepSounds.kt` | Weather background + seasonal themes, Up next, the Sleep Sounds app |
 | `NowPlaying.kt`, `SleepTimer.kt`, `Weather*.kt`, `Apps.kt`, `Favorites.kt`, `Retro*.kt`, `FileBrowser.kt` | as named |
 
 ### Phone app (`phone/src/main/java/com/bedroom/remote`)
@@ -73,13 +79,16 @@ Open this folder in Android Studio.
 | `Gamepad.kt` | Full-screen gamepad and the pad used inside the live view |
 | `AppsUi.kt`, `Roms.kt`, `FilesUi.kt`, `BedroomUi.kt` | Apps & Sleep, Games, file browser, Bedroom tabs |
 | `ShareActivity.kt` | "Bedroom TV" in the phone's Share menu |
+| `TvTile.kt`, `BoxArt.kt` | Quick Settings tile, game covers |
 | `TvClient.kt`, `Secure.kt`, `TvNotification.kt` | Talking to the TV, pairing key storage, the notification controls |
 
 ### PC tools (`tools/`)
 
 | Script | Does |
 |---|---|
-| `panel.ps1` | The control panel (started by `TV Control Panel.cmd`); live view uses scrcpy in `tools\scrcpy` |
+| `panel.ps1` | The control panel (started by `TV Control Panel.cmd`; lives in the tray); live view uses scrcpy in `tools\scrcpy` |
+| `update.cmd` / `update.ps1` | Build both apps (release) and install the TV app |
+| `restart-diag.cmd`, `probe.cmd` | Read-only checks: why the TV restarted; which TV features are available |
 | `photos.ps1` | Two-way photo frame sync |
 | `saves.ps1`, `roms.ps1` | RetroArch saves / games between PC and TV |
 | `weekly.ps1` | Weekly save backup + photo sync (Task Scheduler) |

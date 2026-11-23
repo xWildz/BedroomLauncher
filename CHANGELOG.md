@@ -8,8 +8,8 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 | Current versions | |
 |---|---|
-| Bedroom Home (TV) | **2.0.0** (versionCode 39) |
-| TV Remote (phone) | **3.6 "Cozy Capybara"** (versionCode 26) |
+| Bedroom Home (TV) | **2.0.1** (versionCode 40) |
+| TV Remote (phone) | **3.7 "Roaming Raccoon"** (versionCode 27) |
 | PC control panel | **v4.2** |
 
 > Older entries were reconstructed from the project notes and the APKs built along the way, so very early
@@ -18,6 +18,11 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## Bedroom Home (TV app)
+
+### 2.0.1 — 2026-11-22
+- **Control from anywhere with Tailscale:** the phone remote server also accepts your private Tailscale network
+  (100.64.0.0/10, only devices signed in to your Tailscale account). Requests still have to be signed with the
+  pairing key. The TV tells the phone its Tailscale address.
 
 ### 2.0.0 — 2026-11-22
 - **Sleep Sounds:** its own app in the TV's app list (and in All apps). Rain, ocean, fan, deep / soft / white
@@ -128,6 +133,11 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## TV Remote (phone app)
+
+### 3.7 "Roaming Raccoon" — 2026-11-22
+- **Works away from home:** with Tailscale on the TV and the phone, the app learns the TV's Tailscale address
+  while you're home and switches to it by itself when the home address doesn't answer (and back again). The
+  notification controls and the Quick Settings tile try both too. A note shows when you're connected from away.
 
 ### 3.6 "Cozy Capybara" — 2026-11-22
 - **Quick Settings tile:** "Bedroom TV" in the phone's pull-down shade. Lit = awake, tap to rest / wake;

@@ -82,8 +82,18 @@ object Auth {
     /** Constant-time compare (no timing hints). */
     fun same(a: String, b: String) = MessageDigest.isEqual(a.toByteArray(), b.toByteArray())
 
-    /** Only devices on the home network (and the TV itself). */
-    fun isLocal(a: InetAddress?) = a != null && (a.isSiteLocalAddress || a.isLoopbackAddress || a.isLinkLocalAddress)
+    /**
+     * Only devices on the home network, your private Tailscale network (100.64.0.0/10, reachable only by
+     * devices signed in to your Tailscale account), and the TV itself. Every request must still be signed
+     * with the pairing key.
+     */
+    fun isLocal(a: InetAddress?) = a != null &&
+        (a.isSiteLocalAddress || a.isLoopbackAddress || a.isLinkLocalAddress || isTailscale(a))
+
+    fun isTailscale(a: InetAddress?): Boolean {
+        val b = (a as? java.net.Inet4Address)?.address ?: return false
+        return (b[0].toInt() and 0xFF) == 100 && (b[1].toInt() and 0xC0) == 64
+    }
 
     @Synchronized
     fun isBlocked(ip: String): Boolean {

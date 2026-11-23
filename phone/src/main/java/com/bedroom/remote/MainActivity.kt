@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
             .setTitle("Pair with this TV?")
             .setMessage(
                 "Connect TV Remote to the TV at $h?\n\nOnly say yes if you just scanned the QR code on your own TV." +
-                    if (tv.configured && tv.host != h) "\n\nThis replaces your current TV (${tv.host})." else "",
+                    if (tv.configured && tv.homeHost != h) "\n\nThis replaces your current TV (${tv.homeHost})." else "",
             )
             .setPositiveButton("Pair") { _, _ ->
                 if (tv.save(h, k)) {

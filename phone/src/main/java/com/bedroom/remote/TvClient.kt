@@ -114,22 +114,26 @@ class TvClient(ctx: Context) {
          * Call off the main thread.
          */
         fun callBlocking(ctx: Context, action: String, vararg params: Pair<String, String>): JSONObject? {
-            val host = ctx.getSharedPreferences("tv", Context.MODE_PRIVATE).getString("host", "").orEmpty()
+            val p = ctx.getSharedPreferences("tv", Context.MODE_PRIVATE)
             val key = SecureKey.load(ctx)
-            if (host.isBlank() || key.isBlank()) return null
-            return try {
-                val conn = Signer.open(host, key, action, params.toList())
-                conn.connectTimeout = 3000
-                conn.readTimeout = 4000
+            if (key.isBlank()) return null
+            // Home address first, then the Tailscale ("away") address.
+            val hosts = listOf(p.getString("host", "").orEmpty(), p.getString("away", "").orEmpty()).filter { it.isNotBlank() }
+            for (host in hosts) {
                 try {
-                    if (conn.responseCode != 200) null
-                    else JSONObject(String(Signer.readVerified(key, conn), Charsets.UTF_8))
-                } finally {
-                    conn.disconnect()
+                    val conn = Signer.open(host, key, action, params.toList())
+                    conn.connectTimeout = 3000
+                    conn.readTimeout = 4000
+                    try {
+                        if (conn.responseCode == 200) return JSONObject(String(Signer.readVerified(key, conn), Charsets.UTF_8))
+                        if (conn.responseCode == 403) return null
+                    } finally {
+                        conn.disconnect()
+                    }
+                } catch (e: Exception) {
                 }
-            } catch (e: Exception) {
-                null
             }
+            return null
         }
 
         fun isPaired(ctx: Context): Boolean =
@@ -146,8 +150,17 @@ class TvClient(ctx: Context) {
     private val appCtx = ctx.applicationContext
     private val prefs = ctx.getSharedPreferences("tv", Context.MODE_PRIVATE)
 
-    var host by mutableStateOf(prefs.getString("host", "") ?: "")
+    /** The TV's address at home (from pairing). */
+    var homeHost by mutableStateOf(prefs.getString("host", "") ?: "")
         private set
+    /** The TV's address on your private Tailscale network (learned from the TV); used away from home. */
+    var awayHost by mutableStateOf(prefs.getString("away", "") ?: "")
+        private set
+    /** The address in use right now: home, or the Tailscale one when home doesn't answer. */
+    var host by mutableStateOf(homeHost)
+        private set
+    /** True while connected through Tailscale (away from home). */
+    val away: Boolean get() = awayHost.isNotBlank() && host == awayHost
     var key by mutableStateOf(SecureKey.load(ctx))
         private set
     /** Set if a reply failed its signature check (something on the network pretending to be the TV). */
@@ -191,7 +204,10 @@ class TvClient(ctx: Context) {
         val k = newKey.trim().lowercase()
         if (!Signer.validHost(h) || !Signer.validKey(k)) return false
         SecureKey.save(appCtx, k)
+        // A different TV: forget the old TV's Tailscale address.
+        if (h != homeHost) { prefs.edit().remove("away").apply(); awayHost = "" }
         prefs.edit().putString("host", h).apply()
+        homeHost = h
         host = h
         key = k
         online = null
@@ -216,41 +232,73 @@ class TvClient(ctx: Context) {
     /** Failed calls in a row. One slow reply isn't "offline"; two in a row is. */
     private var failures = 0
 
+    private sealed class Reply {
+        class Ok(val j: JSONObject) : Reply()
+        object Forbidden : Reply()
+        object Busy : Reply()
+        object Failed : Reply()
+    }
+
+    /** One signed request to [h]. */
+    private fun once(h: String, action: String, params: Array<out Pair<String, String>>, connectMs: Int): Reply = try {
+        val conn = Signer.open(h, key, action, params.toList())
+        conn.connectTimeout = connectMs
+        conn.readTimeout = if (action in SLOW) 30000 else 8000
+        conn.useCaches = false
+        try {
+            when (conn.responseCode) {
+                403 -> Reply.Forbidden
+                429 -> Reply.Busy
+                else -> Reply.Ok(JSONObject(body(conn)))
+            }
+        } finally {
+            conn.disconnect()
+        }
+    } catch (e: Exception) {
+        Reply.Failed
+    }
+
+    /** The address to try when the current one doesn't answer (home <-> Tailscale), if there is one. */
+    private fun otherHost(): String? = when {
+        awayHost.isBlank() -> null
+        host == awayHost -> homeHost.takeIf { it.isNotBlank() }
+        else -> awayHost
+    }
+
     private suspend fun call(action: String, vararg params: Pair<String, String>): JSONObject? =
         withContext(Dispatchers.IO) {
             if (!configured) return@withContext null
             // The TV said our key is wrong: wait for a re-pair (or the Reconnect button) instead of
             // retrying every few seconds, which would look like an attack and get the phone blocked.
             if (badKey && action != "connectkeys") return@withContext null
+            fun ok(r: Reply.Ok): JSONObject {
+                badKey = false
+                failures = 0
+                online = true
+                return r.j
+            }
             // Two tries: the first request after the phone or TV wakes Wi-Fi up is often the slow one.
             for (attempt in 1..2) {
-                try {
-                    val conn = signed(action, *params)
-                    conn.connectTimeout = if (attempt == 1) 3000 else 5000
-                    conn.readTimeout = if (action in SLOW) 30000 else 8000
-                    conn.useCaches = false
-                    try {
-                        when (conn.responseCode) {
-                            403 -> {
-                                badKey = true
-                                online = false
-                                return@withContext null
-                            }
-                            429 -> { // briefly blocked by the TV: back off
-                                online = false
-                                return@withContext null
-                            }
-                        }
-                        val body = body(conn)
-                        badKey = false
-                        failures = 0
-                        online = true
-                        return@withContext JSONObject(body)
-                    } finally {
-                        conn.disconnect()
+                when (val r = once(host, action, params, if (attempt == 1) 3000 else 5000)) {
+                    is Reply.Ok -> return@withContext ok(r)
+                    Reply.Forbidden -> {
+                        badKey = true
+                        online = false
+                        return@withContext null
                     }
-                } catch (e: Exception) {
-                    if (attempt == 1) kotlinx.coroutines.delay(400)
+                    Reply.Busy -> { // briefly blocked by the TV: back off
+                        online = false
+                        return@withContext null
+                    }
+                    Reply.Failed -> if (attempt == 1) kotlinx.coroutines.delay(400)
+                }
+            }
+            // Not answering at this address: away from home (or back home), try the other one.
+            otherHost()?.let { other ->
+                val r = once(other, action, params, 4000)
+                if (r is Reply.Ok) {
+                    host = other
+                    return@withContext ok(r)
                 }
             }
             failures++
@@ -278,6 +326,11 @@ class TvClient(ctx: Context) {
 
     suspend fun refreshStatus() {
         val j = call("status") ?: return
+        // Remember the TV's Tailscale address (sent by the TV while its Tailscale app is connected).
+        j.optString("awayHost").takeIf { Signer.validAwayHost(it) && it != awayHost }?.let {
+            awayHost = it
+            prefs.edit().putString("away", it).apply()
+        }
         status = TvStatus(
             sleepMinutesLeft = if (j.isNull("sleepMinutesLeft")) null else j.optInt("sleepMinutesLeft"),
             lastChoice = j.optInt("lastChoice"),
@@ -335,6 +388,9 @@ class TvClient(ctx: Context) {
         offlineHint = when {
             open(8765) -> "The TV is answering again. Tap Reconnect."
             open(5555) -> "The TV is on the network but Bedroom Home is still starting (it may have just restarted). Give it a minute."
+            awayHost.isNotBlank() -> "Can't reach the TV at home or through Tailscale. Away from home? Check Tailscale is " +
+                "connected on your phone. Otherwise the TV may be restarting (wait a minute), turned fully off with its own " +
+                "remote, or off Wi-Fi (Bedroom Home reconnects Wi-Fi by itself within about 3 minutes)."
             else -> "The TV isn't on the network. It may be restarting (wait a minute), turned fully off with its own remote, " +
                 "or off Wi-Fi (Bedroom Home reconnects Wi-Fi by itself within about 3 minutes)."
         }

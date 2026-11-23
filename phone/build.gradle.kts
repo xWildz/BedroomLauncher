@@ -12,8 +12,8 @@ android {
         applicationId = "com.bedroom.remote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 26
-        versionName = "3.6 Cozy Capybara"
+        versionCode = 27
+        versionName = "3.7 Roaming Raccoon"
     }
 
     buildTypes {

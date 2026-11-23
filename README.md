@@ -11,8 +11,8 @@ features use this TV's MStar chip service and may not work elsewhere.
 
 | Folder | What | Version |
 |---|---|---|
-| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.0.0** |
-| `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.6 "Cozy Capybara"** |
+| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.0.1** |
+| `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.7 "Roaming Raccoon"** |
 | `tools/` | **TV Control Panel** and PC scripts (Windows, PowerShell) | panel **v4.2** |
 
 What changed in each version: [`CHANGELOG.md`](CHANGELOG.md).
@@ -26,6 +26,10 @@ Device notes (what was changed on the TV and how to undo it): `DEVICES.md`.
 4. Pair the phone app by scanning the QR code on the TV's Phone screen.
 
 ## Day to day
+
+- **Away from home:** install Tailscale (Play Store) on the TV and the phone, signed in to the same account. The
+  phone app finds the TV's Tailscale address by itself and uses it whenever the home address doesn't answer.
+  Don't forward router ports to the TV instead.
 
 - **PC control panel:** double-click `TV Control Panel.cmd`.
 - **Photo frame:** put photos in `Documents\TV Photo Frame` (a subfolder = an album), then *Sync photos* in the panel.

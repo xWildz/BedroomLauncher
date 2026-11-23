@@ -27,6 +27,18 @@ import java.net.Socket
 import kotlin.concurrent.thread
 
 object LocalNet {
+    /** The TV's address on your private Tailscale network (100.x.y.z), if the Tailscale app is connected. */
+    fun tailscaleIp(): String? = try {
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp }
+            .flatMap { it.inetAddresses.toList() }
+            .filterIsInstance<Inet4Address>()
+            .firstOrNull { Auth.isTailscale(it) }
+            ?.hostAddress
+    } catch (e: Exception) {
+        null
+    }
+
     fun ipv4(): String? = try {
         NetworkInterface.getNetworkInterfaces().toList()
             .filter { it.isUp && !it.isLoopback }
@@ -420,6 +432,7 @@ object RemoteActions {
             .put("backlight", Brightness.cached)
             .put("tvVersion", BuildConfig.VERSION_NAME)
             .put("uptimeMin", android.os.SystemClock.elapsedRealtime() / 60_000)
+            .put("awayHost", LocalNet.tailscaleIp() ?: "")
             .toString()
     }
 

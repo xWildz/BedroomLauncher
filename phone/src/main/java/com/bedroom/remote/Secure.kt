@@ -92,6 +92,13 @@ object Signer {
         return p[0] == 10 || (p[0] == 172 && p[1] in 16..31) || (p[0] == 192 && p[1] == 168)
     }
 
+    /** The TV's address on your private Tailscale network (100.64.0.0/10), used away from home. */
+    fun validAwayHost(h: String): Boolean {
+        val p = h.split('.').map { it.toIntOrNull() ?: return false }
+        if (p.size != 4 || p.any { it !in 0..255 }) return false
+        return p[0] == 100 && p[1] in 64..127
+    }
+
     fun hex(b: ByteArray) = b.joinToString("") { "%02x".format(it) }
 
     fun mac(key: String): Mac = Mac.getInstance("HmacSHA256").apply {

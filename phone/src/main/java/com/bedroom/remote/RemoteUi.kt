@@ -193,6 +193,7 @@ private fun ConnectionNote(tv: TvClient) {
     val text = when {
         tv.online == false -> tv.offlineHint
         tv.online == true && up in 0..15 -> "The TV restarted $up min ago. The Bedroom tab shows why (TV health)."
+        tv.online == true && tv.away -> "Away from home: connected through Tailscale. Live view uses more data on mobile."
         else -> null
     } ?: return
     Text(
@@ -592,7 +593,7 @@ private fun SleepSection(tv: TvClient) {
 @Composable
 private fun SettingsDialog(tv: TvClient, onDismiss: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    var host by remember { mutableStateOf(tv.host) }
+    var host by remember { mutableStateOf(tv.homeHost) }
     var key by remember { mutableStateOf("") } // never shown back on screen
     var error by remember { mutableStateOf<String?>(null) }
     var notif by remember { mutableStateOf(TvNotification.enabled(ctx)) }
@@ -606,6 +607,11 @@ private fun SettingsDialog(tv: TvClient, onDismiss: () -> Unit) {
                     color = Sub, fontSize = 14.sp,
                 )
                 OutlinedTextField(value = host, onValueChange = { host = it }, label = { Text("TV address (e.g. 192.168.1.50)") }, singleLine = true)
+                Text(
+                    if (tv.awayHost.isNotBlank()) "Away from home: ${tv.awayHost} through Tailscale (found automatically)."
+                    else "Away from home: install Tailscale on the TV and this phone; the TV's address is picked up automatically.",
+                    color = Sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp),
+                )
                 OutlinedTextField(
                     value = key, onValueChange = { key = it; error = null }, singleLine = true,
                     label = { Text(if (tv.key.isNotBlank()) "New key (leave empty to keep the saved one)" else "Key (the k=… part of the link)") },

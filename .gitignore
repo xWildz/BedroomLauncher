@@ -42,3 +42,6 @@ tools/shot.ps1
 app/src/main/java/com/bedroom/launcher/PictureProbe.kt
 app/src/main/java/com/bedroom/launcher/StreamHeartbeat.kt
 phone/src/main/java/com/bedroom/remote/Saves.kt
+
+# ---- One-off Tailscale install helper
+tools/tailscale*

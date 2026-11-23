@@ -585,6 +585,7 @@ $FastKeys = @{
     "KEYCODE_DPAD_CENTER" = "ok"; "KEYCODE_ENTER" = "enter"; "KEYCODE_BACK" = "back"; "KEYCODE_HOME" = "home"; "KEYCODE_MENU" = "menu"
     "KEYCODE_MEDIA_PLAY_PAUSE" = "playpause"; "KEYCODE_VOLUME_UP" = "volup"; "KEYCODE_VOLUME_DOWN" = "voldown"
     "KEYCODE_VOLUME_MUTE" = "mute"; "KEYCODE_SEARCH" = "search"; "KEYCODE_SETTINGS" = "settings"; "KEYCODE_DEL" = "backspace"
+    "KEYCODE_MEDIA_PLAY" = "play"; "KEYCODE_MEDIA_PAUSE" = "pause"; "KEYCODE_MEDIA_NEXT" = "next"; "KEYCODE_MEDIA_PREVIOUS" = "prev"
 }
 $Script:PairKey = $null
 $Script:PairKeyTried = [DateTime]::MinValue
@@ -627,7 +628,7 @@ function Send-FastKey([string]$name) {
 function Key([string]$k) {
     $n = $FastKeys[$k]
     if ($n -and (Send-FastKey $n)) { return }
-    & $adb -s $Tv shell "input keyevent $k" 2>&1 | Out-Null   # buttons the virtual remote doesn't have (prev/next...)
+    & $adb -s $Tv shell "input keyevent $k" 2>&1 | Out-Null   # only if the fast link isn't available (no pairing key yet)
 }
 function OpenApp([string]$pkg) { TvShell "monkey -p $pkg -c android.intent.category.LEANBACK_LAUNCHER 1 >/dev/null 2>&1 && echo Opened $pkg" }
 function Confirm([string]$q) { [Windows.Forms.MessageBox]::Show($q, "Bedroom TV", "YesNo", "Question") -eq "Yes" }

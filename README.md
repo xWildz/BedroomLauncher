@@ -11,9 +11,9 @@ features use this TV's MStar chip service and may not work elsewhere.
 
 | Folder | What | Version |
 |---|---|---|
-| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.0.1** |
+| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.0.2** |
 | `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.7 "Roaming Raccoon"** |
-| `tools/` | **TV Control Panel** and PC scripts (Windows, PowerShell) | panel **v4.2** |
+| `tools/` | **TV Control Panel** and PC scripts (Windows, PowerShell) | panel **v4.2.1** |
 
 What changed in each version: [`CHANGELOG.md`](CHANGELOG.md).
 Device notes (what was changed on the TV and how to undo it): `DEVICES.md`.

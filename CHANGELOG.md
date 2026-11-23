@@ -8,9 +8,9 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 | Current versions | |
 |---|---|
-| Bedroom Home (TV) | **2.0.1** (versionCode 40) |
+| Bedroom Home (TV) | **2.0.2** (versionCode 41) |
 | TV Remote (phone) | **3.7 "Roaming Raccoon"** (versionCode 27) |
-| PC control panel | **v4.2** |
+| PC control panel | **v4.2.1** |
 
 > Older entries were reconstructed from the project notes and the APKs built along the way, so very early
 > releases are summarised rather than listed one by one.
@@ -18,6 +18,9 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## Bedroom Home (TV app)
+
+### 2.0.2 — 2026-11-22
+- Previous, Next, Play and Pause are on the fast remote link too (instant from the PC panel, like the arrows).
 
 ### 2.0.1 — 2026-11-22
 - **Control from anywhere with Tailscale:** the phone remote server also accepts your private Tailscale network
@@ -227,6 +230,9 @@ Versions 1.3, 1.8, 2.1, 2.2 and 2.4 were fix releases with no visible changes.
 ---
 
 ## PC tools
+
+### Control panel v4.2.1 — 2026-11-22
+- Previous, Next, Play and Pause buttons use the fast link instead of adb's slow `input` command.
 
 ### Control panel v4.2 — 2026-11-22
 - **Lives in the tray:** closing the window hides it next to the clock. Double-click to open; right-click for

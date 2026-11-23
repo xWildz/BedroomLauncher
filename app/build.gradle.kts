@@ -13,8 +13,8 @@ android {
         minSdk = 24
         targetSdk = 35
         // Bump versionCode on EVERY build that goes to the TV.
-        versionCode = 40
-        versionName = "2.0.1"
+        versionCode = 41
+        versionName = "2.0.2"
     }
 
     buildTypes {

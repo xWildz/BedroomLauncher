@@ -28,6 +28,7 @@ object KeyInjector {
         "backspace" to 67, "enter" to 66, "playpause" to 85,
         "settings" to 176, "info" to 165,
         "volup" to 24, "voldown" to 25, "mute" to 164,
+        "play" to 126, "pause" to 127, "next" to 87, "prev" to 88,
     )
 
     /** Same buttons as HID "consumer" usages for the virtual remote (instant). */
@@ -35,6 +36,7 @@ object KeyInjector {
         "up" to 0x42, "down" to 0x43, "left" to 0x44, "right" to 0x45, "ok" to 0x41,
         "back" to 0x224, "home" to 0x223, "menu" to 0x40, "search" to 0x221,
         "playpause" to 0xCD, "info" to 0x60, "volup" to 0xE9, "voldown" to 0xEA, "mute" to 0xE2,
+        "play" to 0xB0, "pause" to 0xB1, "next" to 0xB5, "prev" to 0xB6,
     )
     private var fast: dadb.AdbStream? = null
 

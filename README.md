@@ -11,7 +11,7 @@ features use this TV's MStar chip service and may not work elsewhere.
 
 | Folder | What | Version |
 |---|---|---|
-| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.0.2** |
+| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.1.0** |
 | `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.7 "Roaming Raccoon"** |
 | `tools/` | **TV Control Panel** and PC scripts (Windows, PowerShell) | panel **v4.2.1** |
 
@@ -70,6 +70,7 @@ Or open this folder in Android Studio:
 | `KeyInjector.kt`, `GamepadBridge.kt`, `UhidHelper.kt` | Remote keys and virtual gamepads |
 | `ScreenOff.kt` | Screen off / rest, backlight helper, broadcast receiver used by the PC panel |
 | `Health.kt` | Idle detection, health report, night clean-up, Wi-Fi repair, memory watchdog, temperature |
+| `TvInfo.kt`, `TvInfoUi.kt` | The TV info screen (chip and system details, read only) |
 | `Look.kt`, `UpNext.kt`, `SleepSounds.kt` | Weather background + seasonal themes, Up next, the Sleep Sounds app |
 | `NowPlaying.kt`, `SleepTimer.kt`, `Weather*.kt`, `Apps.kt`, `Favorites.kt`, `Retro*.kt`, `FileBrowser.kt` | as named |
 

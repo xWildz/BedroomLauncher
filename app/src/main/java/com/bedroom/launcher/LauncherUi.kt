@@ -2,6 +2,8 @@
 
 package com.bedroom.launcher
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.itemsIndexed
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -83,7 +85,7 @@ import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
-private enum class Screen { Home, AllApps, EditFavorites, PhoneRemote, UpNext }
+private enum class Screen { Home, AllApps, EditFavorites, PhoneRemote, UpNext, TvInfo }
 
 // Sizes are computed from the real screen width (960x540 dp on this 1080p TV).
 private val Gap = 24.dp
@@ -111,6 +113,7 @@ private const val KEY_ADD = "fav:add"
 private const val KEY_SLEEP = "sleep"
 private const val KEY_PHONE = "phone"
 private const val KEY_UPNEXT = "upnext"
+private const val KEY_INFO = "tvinfo"
 
 @Composable
 fun LauncherApp(resumeTick: Int, homeTick: Int) {
@@ -196,6 +199,14 @@ fun LauncherApp(resumeTick: Int, homeTick: Int) {
                     onEditFavorites = { screen = Screen.EditFavorites },
                     onPhone = { screen = Screen.PhoneRemote },
                     onUpNext = { screen = Screen.UpNext },
+                    onTvInfo = { screen = Screen.TvInfo },
+                )
+                Screen.TvInfo -> TvInfoScreen(
+                    p = palette,
+                    onBack = {
+                        lastFocused = KEY_INFO
+                        screen = Screen.Home
+                    },
                 )
                 Screen.UpNext -> UpNextScreen(
                     p = palette,
@@ -270,6 +281,7 @@ private fun HomeScreen(
     onEditFavorites: () -> Unit,
     onPhone: () -> Unit,
     onUpNext: () -> Unit,
+    onTvInfo: () -> Unit,
 ) {
     val ctx = LocalContext.current
     // Back on the home screen has nowhere to go; swallow it so nothing odd happens.
@@ -321,7 +333,12 @@ private fun HomeScreen(
                 WeatherPanel(weather, placeSet, p)
             }
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Scrolls sideways if the buttons don't all fit (focus brings the hidden one into view).
+            Row(
+                Modifier.width(d.content).horizontalScroll(rememberScrollState()).padding(vertical = 4.dp, horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 TopPill(
                     title = "All apps",
                     p = p,
@@ -375,6 +392,13 @@ private fun HomeScreen(
                     modifier = Modifier.track(KEY_SETTINGS),
                     icon = { GearIcon(p.text, 18.dp) },
                     onClick = { Apps.openSettings(ctx) },
+                )
+                TopPill(
+                    title = "TV info",
+                    p = p,
+                    modifier = Modifier.track(KEY_INFO),
+                    icon = { ChipIcon(p.text, 18.dp) },
+                    onClick = onTvInfo,
                 )
             }
             Spacer(Modifier.height(16.dp)) // always some air between the buttons and the rows below

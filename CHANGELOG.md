@@ -8,7 +8,7 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 | Current versions | |
 |---|---|
-| Bedroom Home (TV) | **2.0.2** (versionCode 41) |
+| Bedroom Home (TV) | **2.1.0** (versionCode 42) |
 | TV Remote (phone) | **3.7 "Roaming Raccoon"** (versionCode 27) |
 | PC control panel | **v4.2.1** |
 
@@ -18,6 +18,14 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## Bedroom Home (TV app)
+
+### 2.1.0 — 2026-11-22
+- **TV info** button next to Settings: everything the chip and Android report, in sections. Processor (cores,
+  type, every core's speed and range), graphics chip and OpenGL, memory and compressed swap, storage chip and
+  its wear, display modes and HDR, every video/audio codec and its limits, sound outputs and formats,
+  copy-protection (DRM) levels, network, remotes / gamepads / Bluetooth, sensors, software versions, what's
+  running, the kernel, and the full list of system properties. Read only. OK on a section reads it again.
+- The top row of buttons scrolls sideways when they don't all fit.
 
 ### 2.0.2 — 2026-11-22
 - Previous, Next, Play and Pause are on the fast remote link too (instant from the PC panel, like the arrows).

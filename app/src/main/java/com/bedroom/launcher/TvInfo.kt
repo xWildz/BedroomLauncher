@@ -33,6 +33,17 @@ import java.util.UUID
 object TvInfo {
     data class Section(val title: String, val rows: List<Pair<String, String>>)
 
+    /** For the phone: {ok, sections: [{title, rows: [[name, value], ...]}]}. */
+    fun json(ctx: Context): String {
+        val arr = org.json.JSONArray()
+        for (sec in collect(ctx)) {
+            val rows = org.json.JSONArray()
+            sec.rows.forEach { (k, v) -> rows.put(org.json.JSONArray().put(k).put(v)) }
+            arr.put(org.json.JSONObject().put("title", sec.title).put("rows", rows))
+        }
+        return org.json.JSONObject().put("ok", true).put("sections", arr).toString()
+    }
+
     fun collect(ctx: Context): List<Section> {
         val app = ctx.applicationContext
         val sh = shellDump(app)

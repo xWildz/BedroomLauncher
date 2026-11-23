@@ -248,10 +248,20 @@ object WifiRepair {
         }
     }
 
+    /**
+     * Is any Wi-Fi or wired network connected? Looks at every network, not just the "active" one: with a VPN
+     * like Tailscale on, the active network is the VPN, and Wi-Fi underneath it is fine.
+     */
     fun connected(ctx: Context): Boolean = try {
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
-        val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
-        caps != null && (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+        if (cm == null) true
+        else {
+            @Suppress("DEPRECATION")
+            cm.allNetworks.any { n ->
+                val caps = cm.getNetworkCapabilities(n)
+                caps != null && (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+            }
+        }
     } catch (e: Throwable) {
         true // can't tell: leave it alone
     }

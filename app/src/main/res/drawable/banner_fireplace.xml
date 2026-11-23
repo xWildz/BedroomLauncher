@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180 TV banner for Fireplace: brick firebox, logs, flames. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#120806" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#3A1A10" android:pathData="M50,22h220v146h-220z" />
+    <path android:fillColor="#2A120B" android:pathData="M50,50h220v2h-220zM50,80h220v2h-220zM50,110h220v2h-220zM50,140h220v2h-220z" />
+    <path android:fillColor="#E0782E" android:pathData="M110,140 C100,110 125,95 120,70 C140,90 135,105 150,60 C165,95 170,80 175,55 C185,85 205,95 195,140 Z" />
+    <path android:fillColor="#FFC85A" android:pathData="M128,140 C122,118 140,108 138,92 C150,108 152,100 160,82 C168,105 178,110 172,140 Z" />
+    <path android:fillColor="#FFF1C2" android:pathData="M145,140 C142,128 150,122 152,112 C158,124 164,128 160,140 Z" />
+    <path android:fillColor="#3B2416" android:pathData="M88,138h144a8,8 0,0 1,0 16h-144a8,8 0,0 1,0 -16z" />
+    <path android:fillColor="#2A1A10" android:pathData="M100,150l120,-6l2,10l-120,6z" />
+    <path android:fillColor="#FF8A3D" android:pathData="M120,141h14v2h-14zM170,142h20v2h-20zM205,146h12v2h-12z" />
+</vector>

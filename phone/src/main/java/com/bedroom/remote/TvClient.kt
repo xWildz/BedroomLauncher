@@ -29,6 +29,8 @@ data class TvStatus(
     val screenOff: Boolean = false,
     val resting: Boolean = false,
     val gamepad2: String = "off",
+    /** Auto-gamepad mode: which player the TV gave this phone (0 = none yet). */
+    val myPad: Int = 0,
     val night: Boolean = false,
     val backlight: Int = -1,
     val uptimeMin: Long = -1,
@@ -243,7 +245,7 @@ class TvClient(ctx: Context) {
     private fun once(h: String, action: String, params: Array<out Pair<String, String>>, connectMs: Int): Reply = try {
         val conn = Signer.open(h, key, action, params.toList())
         conn.connectTimeout = connectMs
-        conn.readTimeout = if (action in SLOW) 30000 else 8000
+        conn.readTimeout = when (action) { "speedtest" -> 90000; "tvinfo" -> 40000; in SLOW -> 30000; else -> 8000 }
         conn.useCaches = false
         try {
             when (conn.responseCode) {
@@ -343,6 +345,7 @@ class TvClient(ctx: Context) {
             screenOff = j.optBoolean("screenOff"),
             resting = j.optBoolean("resting"),
             gamepad2 = j.optString("gamepad2", "off"),
+            myPad = j.optInt("myPad", 0),
             night = j.optBoolean("night"),
             backlight = j.optInt("backlight", -1),
             uptimeMin = j.optLong("uptimeMin", -1),
@@ -696,6 +699,23 @@ class TvClient(ctx: Context) {
 
     /** Runs a one-shot action and returns the TV's reply (or null). */
     suspend fun action(name: String, vararg params: Pair<String, String>): JSONObject? = call(name, *params)
+
+    /** Runs the TV's internet speed test (takes ~20 s). */
+    suspend fun speedTest(): JSONObject? = call("speedtest")
+
+    /** Everything the TV reports about itself (the TV's "TV info" screen). */
+    suspend fun tvInfo(): List<InfoSection>? {
+        val j = call("tvinfo") ?: return null
+        val arr = j.optJSONArray("sections") ?: return null
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            val rows = o.optJSONArray("rows")
+            InfoSection(o.optString("title"), (0 until (rows?.length() ?: 0)).map { k ->
+                val r = rows!!.getJSONArray(k)
+                r.optString(0) to r.optString(1)
+            })
+        }
+    }
 
     suspend fun refreshPhotos() {
         val arr = call("photos")?.optJSONArray("photos") ?: return

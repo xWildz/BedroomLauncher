@@ -112,12 +112,35 @@ object GamepadBridge {
             "BGP3" -> {
                 if (p.size != 6) return
                 val player = p[1].toIntOrNull() ?: return
-                if (player !in 1..2) return
+                if (player !in 0..2) return
                 if (!signed(ctx, p.subList(0, 5).joinToString(" "), p[5])) return
-                use(ctx, pads[player - 1], p[2], p[3], p[4])
+                // Player 0 = "auto": the first phone becomes Player 1, the next one Player 2.
+                val idx = if (player == 0) claim(from) ?: return else player - 1
+                use(ctx, pads[idx], p[2], p[3], p[4])
             }
         }
     }
+
+    /** Which phone (by address) has which pad in "auto" mode. A pad is free again after 60 s of silence. */
+    private val owners = arrayOfNulls<java.net.InetAddress>(2)
+
+    private fun claim(from: java.net.InetAddress): Int? = synchronized(owners) {
+        owners.indexOf(from).takeIf { it >= 0 }?.let { return it }
+        val now = System.currentTimeMillis()
+        for (i in owners.indices) {
+            val o = owners[i]
+            if (o == null || now - pads[i].lastPacketAt > 60_000) {
+                owners[i] = from
+                pads[i].lastSeq = 0 // a new phone starts its own count
+                Log.i(TAG, "Auto gamepad: $from is Player ${i + 1}")
+                return i
+            }
+        }
+        null // both players busy
+    }
+
+    /** 1 or 2 if this phone holds a pad in auto mode, else 0. */
+    fun playerFor(a: java.net.InetAddress?): Int = synchronized(owners) { owners.indexOf(a ?: return 0) + 1 }
 
     private fun signed(ctx: Context, body: String, mac: String): Boolean {
         val expected = Auth.hex(Auth.hmac(RemoteKey.get(ctx), body.toByteArray(Charsets.US_ASCII))).take(32)

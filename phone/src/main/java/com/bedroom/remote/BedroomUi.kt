@@ -195,6 +195,21 @@ fun BedroomTab(tv: TvClient) {
         // ---------------- Home screen look (weather background + seasonal theme)
         LookCard(b) { k, v -> set(k to v) }
 
+        // ---------------- Low-lag picture for games
+        DashCard("Game picture mode", "🎮", Ui.Pink, subtitle = "Less delay when playing RetroArch") {
+            SwitchRow("Switch the TV to Game mode for RetroArch", b.bool("gameMode", true)) { set("gameMode" to if (it) "1" else "0") }
+            if (b.bool("gameStyleLearned")) {
+                Sub("Learned: opening RetroArch from Bedroom Home (or Continue) switches the TV to your Game picture style, and back to your usual style on the home screen.")
+                TextButton(onClick = { set("gameStyleForget" to "1") }) { Text("Learn again", color = BAccent) }
+            } else {
+                Sub("This TV doesn't name its picture styles, so teach it once: open RetroArch from Bedroom Home, then on the TV pick Settings → Picture → Game. When you go back home, Bedroom Home remembers it and does it by itself from then on.")
+            }
+        }
+
+        // ---------------- Internet speed + everything the TV reports
+        SpeedCard(tv)
+        TvInfoCard(tv)
+
         // ---------------- Storage
         StorageCard(tv)
     }
@@ -599,7 +614,17 @@ private fun PhotoOptions(b: BedroomInfo, set: (Array<out Pair<String, String>>) 
             Card {
                 Title("Slideshow")
                 SwitchRow("Shuffle", b.bool("frameShuffle")) { s("frameShuffle" to if (it) "1" else "0") }
-                SwitchRow("Slow zoom (Ken Burns)", b.bool("frameZoom")) { s("frameZoom" to if (it) "1" else "0") }
+                SwitchRow("Slow zoom", b.bool("frameZoom")) { s("frameZoom" to if (it) "1" else "0") }
+                Label("Change between photos")
+                val tr = b.str("frameTransition", "fade")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("fade" to "Fade", "slide" to "Slide", "kenburns" to "Ken Burns", "mosaic" to "Mosaic").chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { (k, label) -> Segment(label, tr == k, Modifier.weight(1f)) { s("frameTransition" to k) } }
+                        }
+                    }
+                }
+                Sub("Ken Burns: each photo slowly drifts and zooms, like a documentary. Mosaic: the next photo appears tile by tile.")
                 SwitchRow("Fill the screen (crops edges)", b.bool("frameFill")) { s("frameFill" to if (it) "1" else "0") }
                 Label("Each photo shows for")
                 Chips(listOf(8, 15, 30, 60, 120), b.int("frameSecs", 15), { if (it < 60) "$it s" else "${it / 60} min" }) { s("frameSecs" to it.toString()) }

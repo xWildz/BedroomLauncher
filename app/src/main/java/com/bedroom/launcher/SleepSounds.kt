@@ -74,6 +74,11 @@ object SleepSoundEngine {
         Sound("brown", "Deep noise", "Low, soft rumble (brown noise)", 0xFF9A6B4F),
         Sound("pink", "Soft noise", "Balanced hush (pink noise)", 0xFFC98BB0),
         Sound("white", "White noise", "Bright, even hiss", 0xFFD9D9E3),
+        Sound("storm", "Thunderstorm", "Rain with distant thunder", 0xFF7A6FD0),
+        Sound("fire", "Fireplace", "Crackling logs", 0xFFE0782E),
+        Sound("train", "Night train", "Steady rhythm on the rails", 0xFFB09A7A),
+        Sound("crickets", "Crickets", "A warm summer night", 0xFF7FBF6A),
+        Sound("brook", "Brook", "Water over stones", 0xFF4FB3D9),
     )
     val TIMERS = listOf(0, 15, 30, 60, 90, 120, 240) // minutes, 0 = until stopped
 
@@ -161,7 +166,9 @@ object SleepSoundEngine {
                 val step = 1.0 / (RATE * FADE_IN_S)
                 for (i in 0 until n) {
                     gain += (goal - gain).coerceIn(-step * 3, step)
-                    val (l, r) = gen.next(current)
+                    gen.next(current)
+                    val l = gen.l
+                    val r = gen.r
                     buf[i * 2] = (l * gain * 32767 * 0.9).toInt().coerceIn(-32767, 32767).toShort()
                     buf[i * 2 + 1] = (r * gain * 32767 * 0.9).toInt().coerceIn(-32767, 32767).toShort()
                 }
@@ -185,6 +192,11 @@ object SleepSoundEngine {
     @Volatile var appCtx: android.content.Context? = null
 
     /** Noise shapers. Everything is per-sample math on the audio thread; nothing is allocated per sample. */
+    private val DROP_DECAY = exp(-1.0 / (RATE * 0.004))
+    private val CRACK_DECAY = exp(-1.0 / (RATE * 0.0025))
+    private val CLACK_DECAY = exp(-1.0 / (RATE * 0.02))
+    private val BUBBLE_DECAY = exp(-1.0 / (RATE * 0.03))
+
     private class Gen {
         private val rnd = Random(SystemClock.elapsedRealtime())
         private var b0 = 0.0; private var b1 = 0.0; private var b2 = 0.0; private var b3 = 0.0; private var b4 = 0.0; private var b5 = 0.0; private var b6 = 0.0
@@ -209,9 +221,106 @@ object SleepSoundEngine {
 
         private fun brown(prev: Double): Double = ((prev + 0.02 * white()) / 1.02)
 
-        fun next(id: String?): Pair<Double, Double> {
+        /** Output of the last [next] call (left / right). */
+        var l = 0.0
+        var r = 0.0
+        private fun sec() = t.toDouble() / RATE
+
+        // ---- thunderstorm: rain, plus a rumble every 20-50 s that swells in and rolls away
+        private var rumble = 0.0; private var rumbleTarget = 0.0; private var nextThunder = RATE * 8L; private var thunderPan = 0.5
+        private var rumbleLp = 0.0; private var rumbleLp2 = 0.0
+        private fun storm(): Pair<Double, Double> {
+            val (rl, rr) = rainSample(0.0016)
+            if (t >= nextThunder) { rumbleTarget = 0.5 + rnd.nextDouble() * 0.5; thunderPan = 0.2 + rnd.nextDouble() * 0.6; nextThunder = t + RATE * (20L + rnd.nextInt(30)) }
+            rumble += (rumbleTarget - rumble) * (if (rumbleTarget > rumble) 1.0 / (RATE * 0.4) else 1.0 / (RATE * 2.5))
+            if (rumble >= rumbleTarget * 0.98) rumbleTarget = 0.0
+            rumbleLp += 0.004 * (white() - rumbleLp); rumbleLp2 += 0.004 * (rumbleLp - rumbleLp2)
+            val th = rumbleLp2 * 9.0 * rumble * (1 + 0.4 * sin(sec() * 13.0) * sin(sec() * 7.3))
+            return Pair(rl + th * (1.2 - thunderPan), rr + th * (0.2 + thunderPan))
+        }
+
+        private fun rainSample(dropRate: Double): Pair<Double, Double> {
+            brownL = brown(brownL); brownR = brown(brownR)
+            lpL += 0.35 * (pink() - lpL); lpR += 0.35 * (pink() - lpR)
+            if (rnd.nextDouble() < dropRate) { drop = 0.25 + rnd.nextDouble() * 0.5; dropPan = rnd.nextDouble() }
+            val d = if (drop > 0.001) { val v = white() * drop; drop *= DROP_DECAY; v } else 0.0
+            return Pair(lpL * 1.4 + brownL * 1.2 + d * (1 - dropPan), lpR * 1.4 + brownR * 1.2 + d * dropPan)
+        }
+
+        // ---- fireplace: a low roar with crackles and the odd pop
+        private var crack = 0.0; private var crackPan = 0.5; private var crackHp = 0.0; private var crackPrev = 0.0
+        private var roar = 0.0; private var roar2 = 0.0
+        private fun fire(): Pair<Double, Double> {
+            roar += 0.02 * (white() - roar); roar2 += 0.02 * (roar - roar2)
+            val flutter = 0.7 + 0.3 * sin(sec() * 2.1) * sin(sec() * 0.7 + 1)
+            val p = rnd.nextDouble()
+            if (p < 0.00022) { crack = 0.9 + rnd.nextDouble() * 0.6; crackPan = rnd.nextDouble() }       // pop
+            else if (p < 0.0022) { crack = maxOf(crack, 0.15 + rnd.nextDouble() * 0.35); crackPan = rnd.nextDouble() } // crackle
+            var c = 0.0
+            if (crack > 0.002) {
+                val w = white()
+                crackHp = 0.6 * (crackHp + w - crackPrev); crackPrev = w   // bright, snappy
+                c = crackHp * crack
+                crack *= CRACK_DECAY
+            }
+            val base = roar2 * 6.0 * flutter + pink() * 0.05
+            return Pair(base + c * (1 - crackPan), base + c * crackPan)
+        }
+
+        // ---- night train: rumble and the "clack-clack" of wheels over rail joints
+        private var clack = 0.0; private var clackLp = 0.0; private var trainLp = 0.0; private var trainLp2 = 0.0
+        private val beat = (RATE * 1.15).toLong()
+        private fun train(): Pair<Double, Double> {
+            trainLp += 0.01 * (white() - trainLp); trainLp2 += 0.01 * (trainLp - trainLp2)
+            val ph = t % beat
+            if (ph == 0L || ph == (RATE * 0.13).toLong() || ph == (RATE * 0.58).toLong() || ph == (RATE * 0.71).toLong()) clack = 0.6 + rnd.nextDouble() * 0.25
+            var c = 0.0
+            if (clack > 0.002) { clackLp += 0.25 * (white() - clackLp); c = clackLp * clack * 2.2; clack *= CLACK_DECAY }
+            val sway = 1 + 0.15 * sin(sec() * 0.9)
+            val base = trainLp2 * 14.0 * sway + pink() * 0.06
+            return Pair(base + c * 0.9, base + c * 0.75)
+        }
+
+        // ---- crickets: a few crickets chirping at their own pitch and pace
+        private val crPitch = doubleArrayOf(4300.0, 4700.0, 5100.0)
+        private val crEvery = longArrayOf((RATE * 0.82).toLong(), (RATE * 1.07).toLong(), (RATE * 0.95).toLong())
+        private val crOff = longArrayOf(0L, (RATE * 0.31).toLong(), (RATE * 0.57).toLong())
+        private val crPan = doubleArrayOf(0.25, 0.75, 0.5)
+        private val crLevel = doubleArrayOf(0.10, 0.07, 0.05)
+        private var nightLp = 0.0
+        private fun crickets(): Pair<Double, Double> {
+            var cl = 0.0; var cr = 0.0
+            for (k in 0 until 3) {
+                val ph = (t + crOff[k]) % crEvery[k]
+                val pulses = 4
+                val pulseLen = RATE * 0.03
+                if (ph < pulseLen * pulses * 1.6) {
+                    val inPulse = (ph % (pulseLen * 1.6).toLong()) < pulseLen
+                    if (inPulse) {
+                        val v = sin(2 * PI * crPitch[k] * t / RATE) * crLevel[k]
+                        cl += v * (1 - crPan[k]); cr += v * crPan[k]
+                    }
+                }
+            }
+            nightLp += 0.05 * (pink() - nightLp)
+            return Pair(cl + nightLp * 0.5, cr + nightLp * 0.5)
+        }
+
+        // ---- brook: gentle water hiss with little bubbling "bloops"
+        private var bub = 0.0; private var bubF = 500.0; private var bubPh = 0.0; private var bubPan = 0.5; private var waterLp = 0.0
+        private fun brook(): Pair<Double, Double> {
+            val w = pink()
+            waterLp += 0.25 * (w - waterLp)
+            val water = (w - waterLp) * 1.6 * (0.8 + 0.2 * sin(sec() * 1.3) * sin(sec() * 0.4))
+            if (rnd.nextDouble() < 0.0004) { bub = 0.12 + rnd.nextDouble() * 0.12; bubF = 350.0 + rnd.nextDouble() * 500; bubPan = rnd.nextDouble() }
+            var b = 0.0
+            if (bub > 0.001) { bubF *= 1.00004; bubPh += 2 * PI * bubF / RATE; b = sin(bubPh) * bub; bub *= BUBBLE_DECAY }
+            return Pair(water + b * (1 - bubPan), water + b * bubPan)
+        }
+
+        fun next(id: String?) {
             t++
-            return when (id) {
+            val (a, b) = when (id) {
                 "white" -> Pair(white() * 0.35, white() * 0.35)
                 "pink" -> { val a = pink(); Pair(a * 0.9, (a * 0.6 + pink() * 0.4) * 0.9) }
                 "brown" -> { brownL = brown(brownL); brownR = brown(brownR); Pair(brownL * 3.2, brownR * 3.2) }
@@ -239,8 +348,15 @@ object SleepSoundEngine {
                     val d = if (drop > 0.001) { val v = white() * drop; drop *= exp(-1.0 / (RATE * 0.004)); v } else 0.0
                     Pair(lpL * 1.4 + brownL * 1.2 + d * (1 - dropPan), lpR * 1.4 + brownR * 1.2 + d * dropPan)
                 }
+                "storm" -> storm()
+                "fire" -> fire()
+                "train" -> train()
+                "crickets" -> crickets()
+                "brook" -> brook()
                 else -> Pair(0.0, 0.0)
             }
+            l = a
+            r = b
         }
     }
 }
@@ -284,10 +400,10 @@ private fun SleepSoundsScreen(onScreenOff: () -> Unit) {
                 "Plays alongside other apps (never pauses YouTube) and keeps going after you leave. OK on a sound to play or stop it.",
                 color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp,
             )
-            Spacer(Modifier.height(24.dp))
-            val rows = SleepSoundEngine.SOUNDS.chunked(3)
+            Spacer(Modifier.height(14.dp))
+            val rows = SleepSoundEngine.SOUNDS.chunked(4)
             rows.forEachIndexed { r, row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     row.forEachIndexed { c, s ->
                         SoundCard(
                             s, on = playing == s.id,
@@ -296,7 +412,7 @@ private fun SleepSoundsScreen(onScreenOff: () -> Unit) {
                         )
                     }
                 }
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(12.dp))
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -318,20 +434,20 @@ private fun SoundCard(s: SleepSoundEngine.Sound, on: Boolean, modifier: Modifier
     val accent = Color(s.color)
     Box(
         modifier
-            .width(260.dp).height(110.dp)
+            .width(200.dp).height(80.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(if (on) accent.copy(alpha = 0.32f) else Color.White.copy(alpha = if (focused) 0.16f else 0.07f))
             .border(2.dp, if (focused) Color.White.copy(alpha = 0.85f) else Color.Transparent, RoundedCornerShape(14.dp))
             .onFocusChanged { focused = it.isFocused }
             .onKeyEvent { e -> if (e.type == KeyEventType.KeyUp && (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) { onClick(); true } else false }
             .focusable()
-            .padding(16.dp),
+            .padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SoundGlyph(s.id, accent)
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(10.dp))
             Column {
-                Text(s.title, color = Color.White, fontSize = 20.sp)
+                Text(s.title, color = Color.White, fontSize = 17.sp)
                 Text(if (on) "Playing · OK to stop" else s.blurb, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 2)
             }
         }
@@ -357,7 +473,7 @@ private fun Pill(text: String, onClick: () -> Unit) {
 /** Little drawn pictures for each sound. */
 @Composable
 private fun SoundGlyph(id: String, c: Color) {
-    Canvas(Modifier.size(44.dp)) {
+    Canvas(Modifier.size(34.dp)) {
         val s = size.minDimension
         when (id) {
             "rain" -> for (i in 0..3) {

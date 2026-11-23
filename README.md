@@ -11,8 +11,8 @@ features use this TV's MStar chip service and may not work elsewhere.
 
 | Folder | What | Version |
 |---|---|---|
-| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.1.0** |
-| `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.7 "Roaming Raccoon"** |
+| `app/` | **Bedroom Home**: the TV's home screen (Kotlin, Compose for TV), Android 7.0+ | **2.2.0** |
+| `phone/` | **TV Remote**: Android phone app (remote, gamepad, live view, games, bedroom settings, Share to TV), Android 8.0+ | **3.8 "Fireside Ferret"** |
 | `tools/` | **TV Control Panel** and PC scripts (Windows, PowerShell) | panel **v4.2.1** |
 
 What changed in each version: [`CHANGELOG.md`](CHANGELOG.md).
@@ -70,6 +70,7 @@ Or open this folder in Android Studio:
 | `KeyInjector.kt`, `GamepadBridge.kt`, `UhidHelper.kt` | Remote keys and virtual gamepads |
 | `ScreenOff.kt` | Screen off / rest, backlight helper, broadcast receiver used by the PC panel |
 | `Health.kt` | Idle detection, health report, night clean-up, Wi-Fi repair, memory watchdog, temperature |
+| `Fireplace.kt`, `GameMode.kt`, `RetroCheats.kt`, `SpeedTest.kt` | Fireplace app, game picture mode, cheat files, speed test |
 | `TvInfo.kt`, `TvInfoUi.kt` | The TV info screen (chip and system details, read only) |
 | `Look.kt`, `UpNext.kt`, `SleepSounds.kt` | Weather background + seasonal themes, Up next, the Sleep Sounds app |
 | `NowPlaying.kt`, `SleepTimer.kt`, `Weather*.kt`, `Apps.kt`, `Favorites.kt`, `Retro*.kt`, `FileBrowser.kt` | as named |
@@ -84,6 +85,7 @@ Or open this folder in Android Studio:
 | `Gamepad.kt` | Full-screen gamepad and the pad used inside the live view |
 | `AppsUi.kt`, `Roms.kt`, `FilesUi.kt`, `BedroomUi.kt` | Apps & Sleep, Games, file browser, Bedroom tabs |
 | `ShareActivity.kt` | "Bedroom TV" in the phone's Share menu |
+| `CheatsUi.kt`, `TvInfoPhone.kt` | Cheat codes, TV info and speed test screens |
 | `TvTile.kt`, `BoxArt.kt` | Quick Settings tile, game covers |
 | `TvClient.kt`, `Secure.kt`, `TvNotification.kt` | Talking to the TV, pairing key storage, the notification controls |
 
@@ -93,6 +95,7 @@ Or open this folder in Android Studio:
 |---|---|
 | `panel.ps1` | The control panel (started by `TV Control Panel.cmd`; lives in the tray); live view uses scrcpy in `tools\scrcpy` |
 | `update.cmd` / `update.ps1` | Build both apps (release) and install the TV app |
+| `fireplace_render.py` | Makes the Fireplace app's 4K video (python + ffmpeg) |
 | `restart-diag.cmd`, `probe.cmd` | Read-only checks: why the TV restarted; which TV features are available |
 | `photos.ps1` | Two-way photo frame sync |
 | `saves.ps1`, `roms.ps1` | RetroArch saves / games between PC and TV |

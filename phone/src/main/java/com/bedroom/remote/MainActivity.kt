@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = defaultOrientation(this) // tablets may rotate; phones stay upright
         tv = TvClient(this)
         handlePairing(intent)
         setContent { RemoteApp(tv) }

@@ -58,12 +58,15 @@ object BedroomPrefs {
             .put("frameZoom", p.getBoolean("frameZoom", true))
             .put("frameFill", p.getBoolean("frameFill", false))
             .put("frameAlbum", p.getString("frameAlbum", ""))
+            .put("frameTransition", p.getString("frameTransition", "fade"))
             .put("albums", org.json.JSONArray(PhotoStore.albums(ctx)))
             .put("nightLevel", p.getInt("nightLevel", 20))
             .put("nightWarm", p.getBoolean("nightWarm", true))
             .put("night", NightMode.isOn)
             .put("nightClose", p.getBoolean("nightClose", true))
             .put("weatherBg", p.getBoolean("weatherBg", true))
+            .put("gameMode", p.getBoolean("gameMode", true))
+            .put("gameStyleLearned", p.getString("gameStyle", null) != null)
             .put("theme", p.getString("theme", "auto"))
             .put("themes", org.json.JSONArray(Look.THEMES))
             .put("maxVolume", ctx.getSystemService(AudioManager::class.java)?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 100)
@@ -71,7 +74,7 @@ object BedroomPrefs {
     }
 
     private val INTS = setOf("alarmHour", "alarmMin", "alarmDays", "alarmVolFrom", "alarmVolTo", "alarmRamp", "bedMinutes", "bedVolume", "frameSecs", "frameRest", "nightLevel")
-    private val BOOLS = setOf("alarmOn", "bedNight", "nightWarm", "frameShuffle", "frameClock", "frameWeather", "frameZoom", "frameFill", "nightClose", "weatherBg")
+    private val BOOLS = setOf("alarmOn", "bedNight", "nightWarm", "frameShuffle", "frameClock", "frameWeather", "frameZoom", "frameFill", "nightClose", "weatherBg", "gameMode")
 
     /** Saves any settings present in the request, then re-arms the alarm. */
     fun set(ctx: Context, uri: Uri): String {
@@ -83,6 +86,8 @@ object BedroomPrefs {
                 k in BOOLS -> e.putBoolean(k, v == "1" || v == "true")
                 k == "idle" && v in setOf("off", "rest", "frame") -> e.putString(k, v)
                 k == "theme" && v in Look.THEMES -> e.putString(k, v)
+                k == "gameStyleForget" && v == "1" -> e.remove("gameStyle")
+                k == "frameTransition" && v in setOf("fade", "slide", "kenburns", "mosaic") -> e.putString(k, v)
                 k == "frameAlbum" -> if (v.isBlank() || v in PhotoStore.albums(ctx)) e.putString(k, v)
                 k == "bedUrl" -> {
                     val u = v.trim().take(300)

@@ -125,6 +125,8 @@ fun GamesTab(tv: TvClient) {
     var sent by remember { mutableLongStateOf(0L) }
     var total by remember { mutableLongStateOf(0L) }
     var results by remember { mutableStateOf<List<Pair<String, Boolean>>>(emptyList()) }
+    var cheatsOpen by remember { mutableStateOf(false) }
+    if (cheatsOpen) CheatsDialog(tv) { cheatsOpen = false }
     var openSystems by remember { mutableStateOf(setOf<String>()) }
     val coverPrefs = remember { ctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE) }
     var covers by remember { mutableStateOf(coverPrefs.getBoolean("covers", true)) }
@@ -341,6 +343,20 @@ fun GamesTab(tv: TvClient) {
                     results.forEach { (line, ok) -> Text(line, color = if (ok) GGood else GWarn, fontSize = 13.sp) }
                     Text("Tap to hide", color = GSub, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
                 }
+            }
+        }
+
+        item {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Ui.Card).border(1.dp, Ui.Edge, RoundedCornerShape(18.dp))
+                    .clickable { cheatsOpen = true }.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Cheat codes", color = GText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Add, turn on or off cheats per game", color = GSub, fontSize = 12.sp)
+                }
+                Text("›", color = GSub, fontSize = 22.sp)
             }
         }
 

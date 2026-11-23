@@ -1,5 +1,7 @@
 package com.bedroom.remote
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
@@ -263,7 +265,7 @@ fun ScreenViewer(tv: TvClient, onClose: () -> Unit) {
     // Full screen: the picture fills the phone sideways. Tap it (or Back) to return.
     DisposableEffect(full) {
         if (full) act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        onDispose { if (full) act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+        onDispose { if (full) act?.let { it.requestedOrientation = defaultOrientation(it) } }
     }
 
     Dialog(onDismissRequest = { view.keepScreenOn = false; onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -288,11 +290,10 @@ fun ScreenViewer(tv: TvClient, onClose: () -> Unit) {
             }
             return@Dialog
         }
-        Column(
-            Modifier.fillMaxSize().background(SBg).statusBarsPadding().navigationBarsPadding()
-                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 72.dp), // keep clear of the phone's own Back/Home bar
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        // Tablet / wide screen: picture on the left, remote or gamepad beside it. Phone: one column.
+        val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 720
+        @Composable
+        fun HeaderAndPicture() {
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("TV screen", color = SText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
@@ -360,6 +361,9 @@ fun ScreenViewer(tv: TvClient, onClose: () -> Unit) {
                 color = SSub, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp, start = 8.dp, end = 8.dp),
             )
 
+        }
+        @Composable
+        fun Controls() {
             // Remote or gamepad, right under the picture
             Spacer(Modifier.height(12.dp))
             SegmentRow(listOf("Remote", "Gamepad"), controls, Modifier.fillMaxWidth().padding(horizontal = 8.dp)) { pickControls(it) }
@@ -387,10 +391,37 @@ fun ScreenViewer(tv: TvClient, onClose: () -> Unit) {
                     RBtn("Vol+", size = 56) { tv.send(scope, "volup") }
                 }
             }
+        }
+        if (wide) {
+            Row(
+                Modifier.fillMaxSize().background(SBg).statusBarsPadding().navigationBarsPadding().padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(Modifier.weight(1.7f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) { HeaderAndPicture() }
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) { Controls() }
+            }
+            return@Dialog
+        }
+        Column(
+            Modifier.fillMaxSize().background(SBg).statusBarsPadding().navigationBarsPadding()
+                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 72.dp), // keep clear of the phone's own Back/Home bar
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            HeaderAndPicture()
+            Controls()
             Spacer(Modifier.weight(1f))
         }
     }
 }
+
+/** Phones stay upright; tablets (7" and up) can turn either way. */
+fun defaultOrientation(a: Activity): Int =
+    if (a.resources.configuration.smallestScreenWidthDp >= 600) ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+    else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
 /** Paid apps whose picture is always black in captures (copy protection): no point taking stills. */
 private val PROTECTED = listOf("hulu", "netflix", "disney", "hbo", "wbd", "primevideo", "amazon", "peacock", "paramount", "cbs")

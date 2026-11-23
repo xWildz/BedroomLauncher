@@ -289,7 +289,10 @@ class RemoteServer private constructor(private val app: Context) {
                             f.delete()
                         }
                     }
-                    else -> r.json(200, RemoteActions.run(app, path.removePrefix("/api/"), uri))
+                    else -> {
+                        RemoteActions.caller.set(s.inetAddress)
+                        r.json(200, RemoteActions.run(app, path.removePrefix("/api/"), uri))
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -318,13 +321,16 @@ object RemoteActions {
     private fun ok() = """{"ok":true}"""
     private fun err(msg: String) = JSONObject().put("ok", false).put("error", msg).toString()
 
+    /** Who sent the request being handled (so "status" can tell a phone which player it is). */
+    val caller = ThreadLocal<java.net.InetAddress?>()
+
     fun run(ctx: Context, action: String, uri: Uri): String {
         // Anything from the phone or PC except background polling counts as someone using the TV.
         if (action !in QUIET) Idle.poke()
         return runAction(ctx, action, uri)
     }
 
-    private val QUIET = setOf("status", "health", "apps", "nowplaying", "playtime", "lastgame", "bedroom", "photos", "backlight", "roms", "saves", "storage", "frame")
+    private val QUIET = setOf("status", "health", "speedhistory", "tvinfo", "cheatgames", "cheats", "apps", "nowplaying", "playtime", "lastgame", "bedroom", "photos", "backlight", "roms", "saves", "storage", "frame")
 
     private fun runAction(ctx: Context, action: String, uri: Uri): String = when (action) {
         "home" -> {
@@ -400,6 +406,12 @@ object RemoteActions {
         "showphoto" -> ShareOpen.showPhoto(ctx, uri.getQueryParameter("name"))
         "playtime" -> PlayTime.json(ctx)
         "health" -> Health.jsonString(ctx)
+        "speedtest" -> SpeedTest.run(ctx)
+        "cheatgames" -> RetroCheats.gamesJson(ctx)
+        "cheats" -> RetroCheats.list(ctx, uri.getQueryParameter("path"))
+        "cheatsave" -> RetroCheats.save(ctx, uri.getQueryParameter("path"), uri.getQueryParameter("data"))
+        "speedhistory" -> SpeedTest.json(ctx).toString()
+        "tvinfo" -> TvInfo.json(ctx)
         "photos" -> PhotoStore.json(ctx)
         "photodel" -> PhotoStore.delete(ctx, uri.getQueryParameter("name"))
         "storage" -> Storage.json(ctx)
@@ -433,6 +445,7 @@ object RemoteActions {
             .put("tvVersion", BuildConfig.VERSION_NAME)
             .put("uptimeMin", android.os.SystemClock.elapsedRealtime() / 60_000)
             .put("awayHost", LocalNet.tailscaleIp() ?: "")
+            .put("myPad", GamepadBridge.playerFor(caller.get()))
             .toString()
     }
 

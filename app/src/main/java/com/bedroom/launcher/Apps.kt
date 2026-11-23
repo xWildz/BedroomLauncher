@@ -54,6 +54,7 @@ data class AppData(val loaded: Boolean, val all: List<AppEntry>, val byPkg: Map<
 object Apps {
     /** The key the Sleep Sounds app (part of Bedroom Home) uses in app lists and favorites. */
     const val SOUNDS = "com.bedroom.launcher/sounds"
+    const val FIREPLACE = "com.bedroom.launcher/fireplace"
 
     /**
      * Decoded banners are kept between reloads (keyed by the APK path, which changes when an app updates),
@@ -79,7 +80,11 @@ object Apps {
             val ai = ri.activityInfo ?: continue
             // Our own Sleep Sounds app is listed (under its own key); the home screen itself isn't.
             val pkg = if (ai.packageName == ctx.packageName) {
-                if (ai.name.endsWith(".SleepSoundsActivity")) SOUNDS else continue
+                when {
+                    ai.name.endsWith(".SleepSoundsActivity") -> SOUNDS
+                    ai.name.endsWith(".FireplaceActivity") -> FIREPLACE
+                    else -> continue
+                }
             } else ai.packageName
             if (seen.containsKey(pkg)) continue
             val want = decodeAll || pkg in wanted
@@ -111,7 +116,7 @@ object Apps {
     }
 
     /** The app's name as the TV shows it (package name if it can't be read). */
-    fun labelFor(ctx: Context, pkg: String): String = if (pkg == SOUNDS) "Sleep Sounds" else runCatching {
+    fun labelFor(ctx: Context, pkg: String): String = if (pkg == SOUNDS) "Sleep Sounds" else if (pkg == FIREPLACE) "Fireplace" else runCatching {
         val pm = ctx.packageManager
         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
@@ -120,10 +125,12 @@ object Apps {
     fun trim() = synchronized(this) { cache.clear() }
 
     fun launch(ctx: Context, pkg: String): Boolean {
-        if (pkg == SOUNDS) {
-            ctx.startActivity(Intent(ctx, SleepSoundsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        if (pkg == SOUNDS || pkg == FIREPLACE) {
+            val cls = if (pkg == SOUNDS) SleepSoundsActivity::class.java else FireplaceActivity::class.java
+            ctx.startActivity(Intent(ctx, cls).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return true
         }
+        if (pkg in RETROARCH.packages) GameMode.enter(ctx)
         val pm = ctx.packageManager
         val intent = pm.getLeanbackLaunchIntentForPackage(pkg)
             ?: pm.getLaunchIntentForPackage(pkg)

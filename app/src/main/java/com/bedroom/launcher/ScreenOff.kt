@@ -75,12 +75,73 @@ object Backlight {
                 m.invoke(pic, v)
                 "ok $v"
             }
+            // Read-only: what picture-mode controls this TV's service has (for game mode).
+            op == "picmethods" -> "ok " + picIface.methods
+                .filter { m -> Regex("(?i)mode|game|latency|memc|frc|motion").containsMatchIn(m.name) }
+                .map { m -> m.name + "(" + m.parameterTypes.joinToString(",") { it.simpleName } + "):" + m.returnType.simpleName }
+                .sorted().joinToString(" ")
+            op == "pmode" -> "ok " + GameModeImpl.get(pic, picIface)
+            op.startsWith("pmode:") -> GameModeImpl.set(pic, picIface, op.removePrefix("pmode:"))
+            op == "game:on" -> GameModeImpl.on(pic, picIface)
+            op.startsWith("game:on:") -> {
+                // A remembered game style (number): switch to it, report the style it replaced.
+                val before = GameModeImpl.get(pic, picIface)
+                val r = GameModeImpl.set(pic, picIface, op.removePrefix("game:on:"))
+                if (r.startsWith("ok")) "ok $before" else r
+            }
+            op.startsWith("game:off:") -> GameModeImpl.set(pic, picIface, op.removePrefix("game:off:"))
             else -> "ok service=$desc backlight=" + picIface.getMethod("getBacklight").invoke(pic)
         }
     } catch (t: Throwable) {
         val root = generateSequence(t) { it.cause }.last()
         Log.w(TAG, "Backlight $op failed", t)
         "error ${root.javaClass.simpleName}: ${root.message}"
+    }
+}
+
+/**
+ * Picture mode through the TV's picture service (runs in the :picture process). Works with either kind of
+ * setting the vendor library offers: a plain number or a named list (enum) of modes.
+ */
+object GameModeImpl {
+    // Named picture modes on some TVs, numbered ones (…Idx) on this Philips/Funai set.
+    private fun getter(iface: Class<*>) = iface.methods.firstOrNull { Regex("(?i)^getPictureMode(Idx)?$").matches(it.name) && it.parameterTypes.isEmpty() }
+    private fun setter(iface: Class<*>) = iface.methods.firstOrNull { Regex("(?i)^setPictureMode(Idx)?$").matches(it.name) && it.parameterTypes.size == 1 }
+
+    /** Current mode as text: a number, or an enum name. */
+    fun get(pic: Any, iface: Class<*>): String {
+        val v = getter(iface)?.invoke(pic) ?: return "unknown"
+        return if (v is Enum<*>) v.name else v.toString()
+    }
+
+    fun set(pic: Any, iface: Class<*>, value: String): String {
+        if (value == "bool") {
+            iface.methods.firstOrNull { Regex("(?i)^(set|enable)GameMode$").matches(it.name) && it.parameterTypes.size == 1 }
+                ?.invoke(pic, false) ?: return "error: no game mode switch"
+            return "ok off"
+        }
+        val m = setter(iface) ?: return "error: no setPictureMode"
+        val t = m.parameterTypes[0]
+        val arg: Any = when {
+            t == Int::class.javaPrimitiveType || t == Int::class.javaObjectType -> value.toIntOrNull() ?: return "error: not a number"
+            t.isEnum -> t.enumConstants.firstOrNull { (it as Enum<*>).name == value } ?: return "error: no mode $value"
+            else -> return "error: unknown mode type ${t.simpleName}"
+        }
+        m.invoke(pic, arg)
+        return "ok $value"
+    }
+
+    /** Switches to the TV's game mode if it has one by name. Returns "ok <previous mode>" so it can be put back. */
+    fun on(pic: Any, iface: Class<*>): String {
+        iface.methods.firstOrNull { Regex("(?i)^(set|enable)GameMode$").matches(it.name) && it.parameterTypes.size == 1 && it.parameterTypes[0] == Boolean::class.javaPrimitiveType }
+            ?.let { it.invoke(pic, true); return "ok bool" }
+        val m = setter(iface) ?: return "error: no picture mode control"
+        val t = m.parameterTypes[0]
+        if (!t.isEnum) return "error: this TV's picture modes have no names (no game mode to pick)"
+        val game = t.enumConstants.firstOrNull { (it as Enum<*>).name.contains("GAME", true) } ?: return "error: no game picture mode"
+        val before = get(pic, iface)
+        m.invoke(pic, game)
+        return "ok $before"
     }
 }
 
@@ -322,6 +383,8 @@ class ScreenControlReceiver : BroadcastReceiver() {
                     "alarmtest" -> { Alarm.fire(app); "ok alarm" }
                     "bright" -> Brightness.json(app, intent.getIntExtra("level", -1).takeIf { it >= 0 })
                     "health" -> Health.jsonString(app)
+                    // Read-only: the TV's picture-mode controls and current mode.
+                    "picinfo" -> ScreenOff.request(app, "picmethods") + " || mode=" + ScreenOff.request(app, "pmode")
                     else -> ScreenOff.request(app, "get")
                 }
                 Log.i(TAG, "Screen $op: $r")

@@ -8,8 +8,8 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 
 | Current versions | |
 |---|---|
-| Bedroom Home (TV) | **2.1.0** (versionCode 42) |
-| TV Remote (phone) | **3.7 "Roaming Raccoon"** (versionCode 27) |
+| Bedroom Home (TV) | **2.2.0** (versionCode 43) |
+| TV Remote (phone) | **3.8 "Fireside Ferret"** (versionCode 28) |
 | PC control panel | **v4.2.1** |
 
 > Older entries were reconstructed from the project notes and the APKs built along the way, so very early
@@ -18,6 +18,25 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## Bedroom Home (TV app)
+
+### 2.2.0 — 2026-11-22
+- **Fireplace:** its own app in the TV's app list. A 4K fireplace (an original, computer-generated fire made by
+  `tools/fireplace_render.py`, no footage) played on the TV's video layer, the only part of this TV that shows
+  true 4K, with a generated crackling sound. OK = sound on/off, Up/Down = volume, Back = leave; turns itself
+  off after 4 hours. The video is copied to the TV by `tools\update.cmd`.
+- **More sleep sounds:** thunderstorm, fireplace, night train, crickets and a brook (all generated on the TV).
+  Sleep Sounds now shows four sounds per row.
+- **Two-phone multiplayer:** with the gamepad on "Auto", the first phone to press a button is Player 1 and the
+  next is Player 2. Each phone shows which player it is.
+- **Game picture mode:** opening RetroArch from Bedroom Home switches the TV to its own Game picture mode (less
+  delay), and back to your usual mode on the home screen. Only uses modes the TV's picture service offers.
+- **Cheat codes:** add, switch on/off and remove cheats per game from the phone. They're written where
+  RetroArch looks for them (`cheats/<emulator>/<game>.cht`) and RetroArch's "auto-apply cheats" is turned on
+  (its settings are backed up first). Only while RetroArch is closed.
+- **Internet speed test** (download, upload, delay) with a history, for the phone.
+- **TV info for the phone:** the TV info details, readable and searchable on the phone.
+- **Photo frame transitions:** fade, slide, Ken Burns (slow pan and zoom) or mosaic.
+- Wi-Fi self-repair looks at every network, so a VPN like Tailscale can never look like "Wi-Fi is down".
 
 ### 2.1.0 — 2026-11-22
 - **TV info** button next to Settings: everything the chip and Android report, in sections. Processor (cores,
@@ -144,6 +163,14 @@ Made for and tested on: **Philips 4K UHD Android TV, made by Funai** (Android TV
 ---
 
 ## TV Remote (phone app)
+
+### 3.8 "Fireside Ferret" — 2026-11-22
+- **Bedroom tab:** Internet speed card (test, verdict for 4K, history chart), TV info (search everything the TV
+  reports), Game picture mode switch, photo frame transition picker.
+- **Games tab:** Cheat codes (per game: add, on/off, remove, save to the TV).
+- **Gamepad:** Auto / Player 1 / Player 2. Auto lets two phones become Player 1 and 2 by themselves.
+- **Tablets:** the app turns sideways, and live view puts the picture and the remote side by side on wide
+  screens. Phones stay upright as before.
 
 ### 3.7 "Roaming Raccoon" — 2026-11-22
 - **Works away from home:** with Tailscale on the TV and the phone, the app learns the TV's Tailscale address

@@ -14,7 +14,8 @@ import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.Crossfade
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -208,6 +209,8 @@ object PhotoFrame {
 data class FrameOptions(
     val secs: Int, val shuffle: Boolean, val clock: Boolean, val weather: Boolean,
     val zoom: Boolean, val fill: Boolean, val album: String,
+    /** "fade", "slide", "kenburns" (slow pan and zoom) or "mosaic". */
+    val transition: String = "fade",
 )
 
 /**
@@ -238,6 +241,7 @@ class PhotoFrameActivity : ComponentActivity() {
             zoom = p.getBoolean("frameZoom", true),
             fill = p.getBoolean("frameFill", false),
             album = p.getString("frameAlbum", "").orEmpty(),
+            transition = p.getString("frameTransition", "fade").orEmpty(),
         )
         val restMin = p.getInt("frameRest", 60)
         // After a while with nobody around, rest the TV (0 = never).
@@ -297,6 +301,71 @@ class PhotoFrameActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Draws the photo, and the change from the last one: fade, slide (in the direction you went), Ken Burns
+ * (fade + slow pan and zoom, set up in FrameScreen) or mosaic (the new photo appears tile by tile).
+ */
+@Composable
+private fun PhotoTransition(pic: ImageBitmap?, o: FrameOptions, dir: Int, zoom: Float, pan: Float) {
+    var shown by remember { mutableStateOf<ImageBitmap?>(null) }
+    var prev by remember { mutableStateOf<ImageBitmap?>(null) }
+    val t = remember { Animatable(1f) }
+    val tiles = remember { List(8 * 5) { kotlin.random.Random(it * 31 + 7).nextFloat() } }
+    LaunchedEffect(pic) {
+        if (pic == null || pic === shown) return@LaunchedEffect
+        prev = shown
+        shown = pic
+        t.snapTo(0f)
+        t.animateTo(1f, tween(if (o.transition == "slide") 900 else if (o.transition == "mosaic") 1600 else 1200))
+        prev = null
+    }
+    val p = t.value
+    val scale = if (o.fill) ContentScale.Crop else ContentScale.Fit
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        val w = constraints.maxWidth.toFloat()
+        val eased = 1f - (1f - p) * (1f - p) * (1f - p)       // ease-out
+        prev?.let { b ->
+            Image(
+                b, null,
+                Modifier.fillMaxSize().graphicsLayer {
+                    when (o.transition) {
+                        "slide" -> translationX = -dir * w * eased
+                        "mosaic" -> {}
+                        else -> alpha = 1f - p
+                    }
+                },
+                contentScale = scale,
+            )
+        }
+        shown?.let { b ->
+            val mosaic = o.transition == "mosaic" && prev != null && p < 1f
+            Image(
+                b, null,
+                Modifier.fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = zoom; scaleY = zoom
+                        translationX = pan * w * 0.04f + if (o.transition == "slide" && prev != null) dir * w * (1f - eased) else 0f
+                        if (o.transition != "slide" && o.transition != "mosaic" && prev != null) alpha = p
+                    }
+                    .then(
+                        if (mosaic) Modifier.drawWithContent {
+                            val cw = size.width / 8f
+                            val ch = size.height / 5f
+                            for (i in tiles.indices) {
+                                if (tiles[i] * 0.85f < p) {
+                                    val x = (i % 8) * cw
+                                    val y = (i / 8) * ch
+                                    clipRect(x, y, x + cw + 1f, y + ch + 1f) { this@drawWithContent.drawContent() }
+                                }
+                            }
+                        } else Modifier,
+                    ),
+                contentScale = scale,
+            )
+        }
+    }
+}
+
 @Composable
 private fun FrameScreen(
     o: FrameOptions,
@@ -313,6 +382,9 @@ private fun FrameScreen(
     var controlsUntil by remember { mutableStateOf(System.currentTimeMillis() + 4000) }
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     val zoom = remember { Animatable(1f) }
+    val pan = remember { Animatable(0f) }            // Ken Burns: sideways drift, -1..1
+    var panTo by remember { mutableStateOf(1f) }
+    var dir by remember { mutableStateOf(1) }        // +1 next, -1 previous (slide direction)
 
     // A photo shared from the phone goes first (once), even if it isn't in the chosen album.
     var pinned by remember { mutableStateOf<File?>(null) }
@@ -346,11 +418,19 @@ private fun FrameScreen(
         val b = withContext(Dispatchers.IO) { PhotoStore.decode(f, 1920, 1080)?.asImageBitmap() }
         if (b != null) pic = b
         zoom.snapTo(1f)
+        val kb = o.transition == "kenburns"
+        if (kb) {
+            // Each photo drifts the opposite way to the last one.
+            panTo = -panTo
+            pan.snapTo(-panTo)
+        } else pan.snapTo(0f)
         if (paused) return@LaunchedEffect
         coroutineScope {
-            if (o.zoom) launch { zoom.animateTo(1.07f, tween(o.secs * 1000, easing = LinearEasing)) }
+            if (o.zoom || kb) launch { zoom.animateTo(if (kb) 1.14f else 1.07f, tween(o.secs * 1000, easing = LinearEasing)) }
+            if (kb) launch { pan.animateTo(panTo, tween(o.secs * 1000, easing = LinearEasing)) }
             delay(o.secs * 1000L)
         }
+        dir = 1
         if (index + 1 >= order.size) { reload(); index = 0 } else index++
     }
     // Remote / touch commands
@@ -360,8 +440,8 @@ private fun FrameScreen(
             val n = order.size
             if (n == 0) continue
             when (c) {
-                1 -> index = (index + 1) % n
-                -1 -> index = (index - 1 + n) % n
+                1 -> { dir = 1; index = (index + 1) % n }
+                -1 -> { dir = -1; index = (index - 1 + n) % n }
                 0 -> paused = !paused
             }
         }
@@ -387,15 +467,7 @@ private fun FrameScreen(
             }
         },
     ) {
-        Crossfade(targetState = pic, animationSpec = tween(1200), label = "photo") { b ->
-            if (b != null) {
-                Image(
-                    b, null,
-                    Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value },
-                    contentScale = if (o.fill) ContentScale.Crop else ContentScale.Fit,
-                )
-            }
-        }
+        PhotoTransition(pic, o, dir, zoom.value, pan.value)
         if (loaded && order.isEmpty()) {
             Text(
                 if (o.album.isBlank()) "No photos yet.\nPut some in the \"TV Photo Frame\" folder on your PC, or send them from the phone app."
@@ -564,6 +636,7 @@ object RetroHistory {
 
     /** Opens RetroArch straight into the game (the same way game launchers like Daijisho do). */
     fun launch(ctx: Context): String {
+        GameMode.enter(ctx)
         val g = last ?: refresh(ctx) ?: return JSONObject().put("ok", false).put("error", "No recent game in RetroArch's history yet").toString()
         val i = Intent(Intent.ACTION_MAIN)
             .setClassName(g.pkg, "com.retroarch.browser.retroactivity.RetroActivityFuture")

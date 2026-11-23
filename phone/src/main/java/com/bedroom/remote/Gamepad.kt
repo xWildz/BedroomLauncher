@@ -80,8 +80,11 @@ object Pad {
 
 /** Sends the pad state to the TV over UDP (signed) on every change, plus a heartbeat. */
 class GamepadSender(private val tv: TvClient) {
-    /** 1 or 2. Player 2 shows up on the TV as a second controller ("Bedroom Phone Gamepad 2"). */
-    @Volatile var player = 1
+    /**
+     * 0 = auto (the TV makes the first phone Player 1 and the next one Player 2), or 1 / 2 chosen by hand.
+     * Player 2 shows up on the TV as a second controller ("Bedroom Phone Gamepad 2").
+     */
+    @Volatile var player = 0
     private val io = Executors.newSingleThreadExecutor()
     private var socket: DatagramSocket? = null
     private var seq = System.currentTimeMillis()
@@ -129,7 +132,7 @@ fun GamepadScreen(tv: TvClient, onExit: () -> Unit) {
     val view = LocalView.current
     val sender = remember { GamepadSender(tv) }
     val prefs = remember { ctx.getSharedPreferences("pad", android.content.Context.MODE_PRIVATE) }
-    var player by remember { mutableIntStateOf(prefs.getInt("player", 1)) }
+    var player by remember { mutableIntStateOf(prefs.getInt("player2", 0)) }
     sender.player = player
     val scope = rememberCoroutineScope()
     var buttons by remember { mutableIntStateOf(0) }
@@ -148,7 +151,7 @@ fun GamepadScreen(tv: TvClient, onExit: () -> Unit) {
             bars?.show(WindowInsetsCompat.Type.systemBars())
             sender.releaseAll()
             view.keepScreenOn = false
-            act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            act?.let { it.requestedOrientation = defaultOrientation(it) }
         }
     }
     BackHandler { /* ignore edge swipes; use the Exit button */ }
@@ -246,12 +249,12 @@ fun GamepadScreen(tv: TvClient, onExit: () -> Unit) {
                     view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     tv.send(scope, "continuegame")
                 }
-                TapPill("Player $player", if (player == 1) Color(0xFFFF8A80) else Color(0xFF8FB8FF)) {
-                    // Release everything on the old pad before switching.
+                TapPill(playerLabel(tv, player), playerColor(tv, player)) {
+                    // Release everything on the old pad before switching. Auto -> 1 -> 2 -> Auto.
                     sender.releaseAll()
-                    player = if (player == 1) 2 else 1
+                    player = (player + 1) % 3
                     sender.player = player
-                    prefs.edit().putInt("player", player).apply()
+                    prefs.edit().putInt("player2", player).apply()
                 }
                 TapPill("✕ Exit", Faint) { onExit() }
                 TapPill("⌂ TV Home", Color(0xFF8FB8FF)) {
@@ -268,13 +271,26 @@ fun GamepadScreen(tv: TvClient, onExit: () -> Unit) {
     }
 }
 
+private fun effectivePlayer(tv: TvClient, player: Int) = if (player == 0) (tv.status?.myPad ?: 0) else player
+
+private fun playerLabel(tv: TvClient, player: Int): String =
+    if (player == 0) effectivePlayer(tv, 0).let { if (it > 0) "Auto: Player $it" else "Auto player" } else "Player $player"
+
+private fun playerColor(tv: TvClient, player: Int): Color = when (effectivePlayer(tv, player)) {
+    1 -> Color(0xFFFF8A80)
+    2 -> Color(0xFF8FB8FF)
+    else -> Color(0xFFB9A8FF)
+}
+
 private fun gamepadNote(tv: TvClient, player: Int): String {
     val s = tv.status ?: return if (tv.online == false) "Can't reach the TV" else "Connecting…"
-    val st = if (player == 2) s.gamepad2 else s.gamepad
+    val eff = effectivePlayer(tv, player)
+    if (player == 0 && eff == 0) return "Auto: press any button. First phone = Player 1, second phone = Player 2"
+    val st = if (eff == 2) s.gamepad2 else s.gamepad
     return when {
-        st == "ready" -> "Connected as Player $player"
+        st == "ready" -> "Connected as Player $eff" + if (player == 0) " (auto)" else ""
         st == "starting" -> "Starting the gamepad on the TV…"
-        st == "off" -> "Player $player · press any button to connect"
+        st == "off" -> "Player $eff · press any button to connect"
         st.startsWith("error") -> "TV: $st (press Allow full remote on the TV)"
         else -> st
     }
@@ -400,7 +416,7 @@ class PadController(val sender: GamepadSender, private val view: android.view.Vi
         private set
     var hat by mutableIntStateOf(8)
         private set
-    var player by mutableIntStateOf(prefs.getInt("player", 1))
+    var player by mutableIntStateOf(prefs.getInt("player2", 0))
         private set
 
     init { sender.player = player }
@@ -425,9 +441,9 @@ class PadController(val sender: GamepadSender, private val view: android.view.Vi
     fun switchPlayer() {
         sender.releaseAll()
         buttons = 0; hat = 8
-        player = if (player == 1) 2 else 1
+        player = (player + 1) % 3
         sender.player = player
-        prefs.edit().putInt("player", player).apply()
+        prefs.edit().putInt("player2", player).apply()
     }
 }
 
@@ -476,7 +492,7 @@ fun PortraitPad(tv: TvClient, pad: PadController, modifier: Modifier = Modifier)
         }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TapPill("Player ${pad.player}", if (pad.player == 1) Color(0xFFFF8A80) else Color(0xFF8FB8FF)) { pad.switchPlayer() }
+            TapPill(playerLabel(tv, pad.player), playerColor(tv, pad.player)) { pad.switchPlayer() }
             Spacer(Modifier.width(10.dp))
             Text(gamepadNote(tv, pad.player), color = Faint, fontSize = 11.sp)
         }

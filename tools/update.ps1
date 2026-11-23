@@ -5,7 +5,7 @@
 #   powershell -ExecutionPolicy Bypass -File tools\update.ps1 -Only tv   (or -Only phone)
 #   -NoInstall builds without touching the TV.
 
-param([ValidateSet("all", "tv", "phone")][string]$Only = "all", [switch]$NoInstall, [string]$Tv = "")
+param([ValidateSet("all", "tv", "phone")][string]$Only = "all", [switch]$NoInstall, [switch]$Force, [string]$Tv = "")
 
 $ErrorActionPreference = "Continue"
 $root = Split-Path $PSScriptRoot -Parent
@@ -85,16 +85,36 @@ if ($Only -ne "phone") {
         $adb = Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
         & $adb connect $Tv 2>&1 | Out-Null
         $front = (& $adb -s $Tv shell "dumpsys activity activities | grep -m1 mResumedActivity" 2>&1) -join ""
+        $playing = ((& $adb -s $Tv shell "dumpsys media_session | grep -c 'state=PlaybackState {state=3'" 2>&1) -join "").Trim()
+        # Installing restarts Bedroom Home. Never do that while you're watching / listening or the screen is off
+        # (it would end "screen off" and could light the screen at night). -Force skips this check.
+        $busy = ($front -match "ScreenOffActivity|PhotoFrameActivity|FireplaceActivity|SleepSounds") -or ($playing -match '^\d+$' -and [int]$playing -gt 0)
+        $skipInstall = $busy -and -not $Force
+        if ($skipInstall) { Log "Not installing on the TV right now: something is playing or the screen is off. Run update again later (or with -Force)." }
+    }
+    if (-not $NoInstall -and -not $skipInstall) {
         Log "Installing on the TV ..."
         $out = (& $adb -s $Tv install -r $apk 2>&1) -join " "
         Log "  $out"
         if ($out -notmatch "Success") { Fail "Install on the TV failed." }
         # Only bring the home screen back if it was the thing on screen (never interrupt YouTube or anything else).
-        if ($front -match "com\.bedroom\.launcher") {
+        if ($front -match "com\.bedroom\.launcher/\.MainActivity") {
             & $adb -s $Tv shell "am start -n com.bedroom.launcher/.MainActivity" 2>&1 | Out-Null
         }
         $now = (& $adb -s $Tv shell "dumpsys package com.bedroom.launcher | grep -m1 versionName" 2>&1) -join ""
         Log "  TV now has: $($now.Trim())"
+        # The Fireplace app's 4K video (made by tools\fireplace_render.py; too big to go inside the app).
+        $fire = Join-Path $PSScriptRoot "fireplace\fireplace-4k.mp4"
+        if (Test-Path $fire) {
+            $dest = "/sdcard/Android/data/com.bedroom.launcher/files/fireplace/fireplace-4k.mp4"
+            $have = ((& $adb -s $Tv shell "stat -c %s '$dest' 2>/dev/null" 2>&1) -join "").Trim()
+            if ($have -ne "$((Get-Item $fire).Length)") {
+                Log "Copying the fireplace video to the TV ($([math]::Round((Get-Item $fire).Length / 1MB)) MB) ..."
+                & $adb -s $Tv shell "mkdir -p /sdcard/Android/data/com.bedroom.launcher/files/fireplace" 2>&1 | Out-Null
+                $o = (& $adb -s $Tv push $fire $dest 2>&1) -join " "
+                Log "  $o"
+            }
+        }
     }
 }
 

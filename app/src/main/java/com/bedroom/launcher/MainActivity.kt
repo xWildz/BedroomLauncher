@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Idle.poke()
+        GameMode.exit(this) // back home from RetroArch: the usual picture mode again
         resumeTick.intValue++
     }
 

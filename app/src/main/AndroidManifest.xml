@@ -131,6 +131,22 @@
             </intent-filter>
         </activity>
 
+        <!-- "Fireplace": its own app in the TV's app list (4K fireplace video + crackling sound). -->
+        <activity
+            android:name=".FireplaceActivity"
+            android:exported="true"
+            android:label="Fireplace"
+            android:icon="@drawable/ic_fireplace"
+            android:banner="@drawable/banner_fireplace"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.bedroom.launcher.fireplace"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- Sleep timer alarm (internal only). -->
         <receiver android:name=".SleepReceiver" android:exported="false" />
 
